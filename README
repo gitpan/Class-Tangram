@@ -10,6 +10,10 @@ particularly useful if you are using Tangram, but consider it an
 "alternate approach" to Class::Contract, that supports persistence
 without using Data::Dumper/Storable.
 
+If you want to know what this is all about, first go to Sound Object
+Logic's web site at http://www.tangram-persistence.org/, and read the
+"Guided Tour" of Tangram.
+
 INSTALLATION
 
 To install this module type the following:
@@ -21,9 +25,8 @@ To install this module type the following:
 
 DEPENDENCIES
 
-This module has no strict dependencies.
-
-  blah blah blah
+This module requires Set::Object 1.02 or higher.  You may also want to
+install Tangram 2.03 or later.
 
 COPYRIGHT AND LICENCE
 

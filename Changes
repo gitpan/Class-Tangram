@@ -1,9 +1,18 @@
 Revision history for Perl extension Class::Tangram
 
+2001-10-10
+
+   o Release 1.03
+   o Supressed useless warning that I couldn't work around in
+     destructor:
+	'(in cleanup) Can't call method "FETCH" on an undefined value
+	 at ...'
+   o Documentation bugfixes
+
 2001-10-08
 
    o Release 1.02
-   o Fixed 
+   o Fixed many small bugs
 
 2001-09-28
 

@@ -5,7 +5,7 @@ package Class::Tangram;
 # same terms as Perl itself.
 
 # Some modifications
-# $Id: Tangram.pm,v 1.2 2001/10/09 12:30:18 sv Exp $
+# $Id: Tangram.pm,v 1.5 2001/10/10 17:41:00 sv Exp $
 # Copyright © 2001 Micro Sharp Technologies, Inc., Vancouver, WA, USA
 # Author: Karl M. Hegbloom <karlheg@microsharp.com>
 # Perl Artistic Licence.
@@ -18,11 +18,12 @@ Class::Tangram - magic constructors and methods for objects
 
  package Orange;
  
- use vars qw(@ISA @EXPORT_OK $schema);
- use Exporter;
- @ISA = qw(Exporter Class::Tangram);
- @EXPORT_OK = qw($schema);
+ use vars qw(@ISA $schema);
+ use Carp;
+ @ISA = qw(Class::Tangram);
  
+ # define the schema (ie, allowed attributes) of this object
+ # See the Tangram::Schema man page for more information
  $schema = {
      table => "oranges",
  
@@ -55,20 +56,22 @@ Class::Tangram - magic constructors and methods for objects
  my $storage = Tangram::Relational->connect(Project->schema, $dsn, $u, $p)
  
  # OK
- my $orange = Orange->new (juiciness => 8);
+ my $orange = Orange->new(juiciness => 8);
  
- my $juiciness = $orange->juiciness;
+ my $juiciness = $orange->juiciness;   # returns 8
  
- # this *sets* grower... perhaps this should be set_grower
- $orange->grower ($grower)
+ # a "ref" must be set to a blessed object
+ $grower = bless { name => "Joe" }, "Farmer";
+ $orange->set_grower ($grower)
  
- # both these are illegal
- $orange->juiciness ("Yum");
- $orange->segments (SEGMENT_MAX + 1);
+ # these are all illegal
+ $orange->set_juiciness ("Yum");
+ $orange->set_segments (SEGMENT_MAX + 1);
+ $orange->set_grower ("The Fabulous Furry Freak Brothers");
  
  # if you prefer
- $orange->get ("juiciness");
- $orange->set ("juiciness", 123);
+ $orange->get( "juiciness" );
+ $orange->set( juiciness => 123 );
 
 =head1 DESCRIPTION
 
@@ -90,7 +93,7 @@ use Carp qw(croak cluck);
 #use Class::ISA ();
 
 use vars qw($AUTOLOAD $VERSION);
-$VERSION = "1.02";
+$VERSION = "1.03";
 
 local $AUTOLOAD;
 
@@ -403,11 +406,15 @@ sub destroy_array {
 
 sub destroy_set {
     my ($self, $attr) = (@_);
+
+    # warnings suck sometimes
+    local $^W = 0;
+
     my $t = tied $self->{$attr};
-    return if (defined $t and $t =~ m,Tangram::CollOnDemand,);
-    # FIXME - Why can't ->isa work on non-objects!?!?!
-    $self->{$attr}->clear
-	if (ref $self->{$attr} eq "Set::Object");
+    return if ($t =~ m,Tangram::CollOnDemand,);
+    if (ref $self->{$attr} eq "Set::Object") {
+	$self->{$attr}->clear;
+    }
     delete $self->{$attr};
 }
 
@@ -435,6 +442,9 @@ sub destroy_hash {
 
 sub destroy_ref {
     my ($self, $attr) = (@_);
+
+    # warnings suck sometimes
+    local $^W = 0;
 
     # the only reason I bother with all of this is that I experienced
     # Perl did not always call an object's destructor if you just used
@@ -897,7 +907,7 @@ sub DESTROY($) {
     # for every attribute that is defined, and has a cleaner function,
     # call the cleaner function.
     for my $k (keys %$self) {
-	if (defined $cleaners{$class}->{$k}) {
+	if (defined $cleaners{$class}->{$k} and exists $self->{$k}) {
 	    $cleaners{$class}->{$k}->($self, $k);
 	}
     }
@@ -931,7 +941,7 @@ sub clear_refs($) {
 
     # break all ref's, sets, arrays
     for my $k (keys %$self) {
-	if (defined $cleaners{$class}->{$k}) {
+	if (defined $cleaners{$class}->{$k} and exists $self->{$k}) {
 	    $cleaners{$class}->{$k}->($self, $k);
 	}
     }
@@ -944,6 +954,10 @@ sub clear_refs($) {
 =head1 SEE ALSO
 
 L<Tangram::Schema>
+
+B<A guided tour of Tangram, by Sound Object Logic.>
+
+ http://www.soundobjectlogic.com/tangram/guided_tour/fs.html
 
 =head1 BUGS/TODO
 

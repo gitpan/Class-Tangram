@@ -1,5 +1,11 @@
 Revision history for Perl extension Class::Tangram
 
+2001-11-21
+
+   o Release 1.05
+   o Some small speed optimisations and bug fixes.
+   o Changed Makefile.PL to use Pod::Constants
+
 2001-10-14
 
    o Release 1.04

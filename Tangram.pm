@@ -102,13 +102,27 @@ checking and validation to arbitrary objects.  There are several
 modules on CPAN to do that already, but many don't have finely grained
 type checking, and none of them integrated with Tangram.
 
+=head1 DEPENDENCIES
+
+The following modules are required to be installed to use
+Class::Tangram:
+
+   Set::Object => 1.02
+   Pod::Constants => 0.11
+
+=head2 MODULE RELEASE
+
+This is Class::Tangram version 1.05.
+
 =cut
 
 use strict;
 use Carp qw(croak cluck);
 
 use vars qw($AUTOLOAD $VERSION);
-$VERSION = "1.04";
+
+use Pod::Constants -trim => 1, 'MODULE RELEASE' => \$VERSION;
+BEGIN { $VERSION =~ s/^\$VERSION\s*=\s*// };
 
 local $AUTOLOAD;
 
@@ -150,7 +164,7 @@ sub new ($@)
     my $invocant = shift;
     my $class = ref $invocant || $invocant;
 
-    my @values = @_;
+    (my @values, @_) = @_;
 
     # Setup the object
     my $self = { };
@@ -213,7 +227,7 @@ if there is a problem with the values.
 =cut
 
 sub set($@) {
-    my ($self, @values) = (@_);
+    my $self = shift;
 
     # yes, this is a lot to do.  yes, it's slow.  But I'm fairly
     # certain that this could be handled efficiently if it were to be
@@ -222,7 +236,7 @@ sub set($@) {
     my $class = ref $self;
     exists $check{$class} or import_schema($class);
 
-    while (my ($name, $value) = splice @values, 0, 2) {
+    while (my ($name, $value) = splice @_, 0, 2) {
 	croak "attempt to set an illegal field $name in a $class"
 	    if (!defined $check{$class}->{$name});
 
@@ -248,8 +262,10 @@ container).
 =cut
 
 sub get($$) {
-    my ($self, $field) = (@_);
+    my $self = shift;
+    my $field = shift;
     $self->isa("Class::Tangram") or croak "type mismatch";
+
     my $class = ref $self;
     exists $check{$class} or import_schema($class);
     croak "attempt to read an illegal field $field in a $class"
@@ -299,16 +315,18 @@ This only works if the attribute in question is a Set::Object.
 
 =cut
 
-sub AUTOLOAD ($;$) {
-    my ($self, $value) = (@_);
+sub AUTOLOAD {
+    my $self = shift;
     $self->isa("Class::Tangram") or croak "type mismatch";
 
     my $class = ref $self;
+    exists $check{$class} or import_schema($class);
     $AUTOLOAD =~ s/.*://;
     if ($AUTOLOAD =~ m/^(set_|get_)?([^:]+)$/
 	and defined $types{$class}->{$2}) {
 
 	# perl sucks at this type of test
+	my $value = shift;
 	if ((defined $1 and $1 eq "set_")
 	    or (!defined $1 and defined $value)) {
 
@@ -324,7 +342,16 @@ sub AUTOLOAD ($;$) {
 	     ($AUTOLOAD =~ m/^(.*)_(includes|insert|
 			     size|clear|remove)$/x)
 	     and $types{$class}->{$1} =~ m/^i?set$/) {
-	return get($self, $attr)->$method(@_[1..$#_]);
+	# would like to use GOTO here, but it segfaults
+	return $self->get($attr)->$method(@_);
+	#unshift @_, $self;
+	#my $x;
+	#if ( $x = (get($self, $attr))->can($method) ) {
+	    #print ref($x), "\n";
+	    #goto $x;
+	#} else {
+	    #return undef;
+	#}
     } else {
 	croak("unknown method/attribute ${class}->$AUTOLOAD called");
     }
@@ -342,13 +369,12 @@ the Class::Tangram method, like so:
 =cut
 
 sub getset($$;$) {
-    my ($self, $attr, $value) = (@_);
-    $self->isa("Class::Tangram") or croak "type mismatch";
+    $_[0]->isa("Class::Tangram") or croak "type mismatch";
 
-    if (defined $value) {
-	return set($self, $attr, $value);
+    if ($#_ > 1) {
+	goto &set;
     } else {
-	return get($self, $attr);
+	goto &get;
     }
 
 }
@@ -555,7 +581,8 @@ Available functions are:
 =cut
 
 sub destroy_array {
-    my ($self, $attr) = (@_);
+    my $self = shift;
+    my $attr = shift;
     my $t = tied $self->{$attr};
     @{$self->{$attr}} = () unless ($t =~ m,Tangram::CollOnDemand,);
     delete $self->{$attr};
@@ -568,7 +595,8 @@ sub destroy_array {
 =cut
 
 sub destroy_set {
-    my ($self, $attr) = (@_);
+    my $self = shift;
+    my $attr = shift;
 
     # warnings suck sometimes
     local $^W = 0;
@@ -588,9 +616,11 @@ sub destroy_set {
 =cut
 
 sub destroy_hash {
-    my ($self, $attr) = (@_);
+    my $self = shift;
+    my $attr = shift;
     my $t = tied $self->{$attr};
-    %{$self->{$attr}} = () unless ($t =~ m,Tangram::CollOnDemand,);
+    %{$self->{$attr}} = ()
+	unless (defined $t and $t =~ m,Tangram::CollOnDemand,);
     delete $self->{$attr};
 }
 
@@ -604,20 +634,8 @@ sub destroy_hash {
 =cut
 
 sub destroy_ref {
-    my ($self, $attr) = (@_);
-
-    # warnings suck sometimes
-    local $^W = 0;
-
-    # the only reason I bother with all of this is that I experienced
-    # Perl did not always call an object's destructor if you just used
-    # delete.
-    my $t = tied $self->{$attr};
-    if (defined $t and $t =~ m/OnDemand/) {
-	delete $self->{$attr};
-    } else {
-	my $ref = delete $self->{$attr};
-    }
+    my $self = shift;
+    delete $self->{shift};
 }
 
 =item parse_X ($attribute, { schema option })
@@ -639,7 +657,8 @@ Available functions:
 
 sub parse_string {
 
-    my ($attribute, $option) = (@_);
+    my $attribute = shift;
+    my $option = shift;
 
     # simple case; return the check_string function.  We don't
     # need a destructor for a string so don't return one.
@@ -787,7 +806,7 @@ an object schema.
 =cut
 
 sub import_schema($) {
-    my ($class) = (@_);
+    my $class = shift;
 
     eval {
 	my ($fields, $bases, $abstract);
@@ -921,7 +940,7 @@ currently escape unprintable characters.
 =cut
 
 sub quickdump($) {
-    my ($self) = (@_);
+    my $self = shift;
 
     my $r = "REF ". (ref $self). "\n";
     for my $k (sort keys %$self) {
@@ -949,7 +968,7 @@ $k)
 =cut
 
 sub DESTROY($) {
-    my ($self) = (@_);
+    my $self = shift;
 
     my $class = ref $self;
 
@@ -987,8 +1006,7 @@ Tangram::Storage->unload method.
 =cut
 
 sub clear_refs($) {
-    my ($self) = (@_);
-
+    my $self = shift;
     my $class = ref $self;
 
     exists $cleaners{$class} or import_schema($class);

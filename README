@@ -1,4 +1,4 @@
-Class::Tangram version 1.06
+Class::Tangram version 1.08
 ===========================
 
 Class::Tangram serves to provide a base class for deriving Tangram
@@ -28,11 +28,33 @@ DEPENDENCIES
 This module requires Set::Object 1.02 or higher, and Pod::Constants
 0.12.  You may also want to install Tangram 2.03 or later.
 
-Test::Simple 0.18 is also required to run the test suite.
+Test::Simple 0.18 and Date::Manip 0.32 is also required to run the
+test suite.
+
+UPGRADING FROM 1.07
+
+There are no backwards-incompatibile changes in this release, unless
+you have another Tangram::Type that provides the tangram type
+"transient", 
+
+UPGRADING FROM 1.06
+
+Most users should be able to install the new version without problems.
+
+However, there are a few small places where slight changes could
+affect your code.
+
+   1. If you have an attribute that is an array or a flat array, and
+      you evaluate it in list context, it now returns the contents of
+      the array rather than a reference to the array.  This is keeping
+      in line with the way Set::Object attributes work.
+
+   2. If you were using the bogus "time" or "timestamp" types, you
+      will need to switch to "rawtime", "rawdatetime" or "dmdatetime".
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2001 Sam Vilain.  All Rights Reserved.  This module is
-free software. It may be used, redistributed and/or modified under the
-terms of the Perl Artistic License
+Copyright (C) 2001, 2002 Sam Vilain.  All Rights Reserved.  This
+module is free software. It may be used, redistributed and/or modified
+under the terms of the Perl Artistic License
 

@@ -1,11 +1,9 @@
 package Class::Tangram;
 
-# Copyright (c) 2001 Sam Vilain. All rights reserved. This program is
-# free software; you can redistribute it and/or modify it under the
-# same terms as Perl itself.
+# Copyright (c) 2001, 2002 Sam Vilain.  All right reserved.  This file
+# is licensed under the terms of the Perl Artistic license.
 
 # Some modifications
-# $Id: Tangram.pm,v 1.6 2001/11/21 14:14:06 sv Exp $
 # Copyright Å© 2001 Micro Sharp Technologies, Inc., Vancouver, WA, USA
 # Author: Karl M. Hegbloom <karlheg@microsharp.com>
 # Perl Artistic Licence.
@@ -23,8 +21,10 @@ objects from a Tangram-compatible object specification.
  use vars qw($schema);
  use Tangram::Ref;
 
- # define the schema (ie, allowed attributes) of this object.  See the
- # Tangram::Schema man page for more information on the syntax here.
+ # define the schema (ie, allowed attributes) of this
+ # object.  See the Tangram::Schema man page for an
+ # introduction to the Tangram schema syntax.
+
  $schema = {
      table => "oranges",
 
@@ -32,12 +32,12 @@ objects from a Tangram-compatible object specification.
          int => {
              juiciness => undef,
              segments => {
-                 # here is a new one - this code reference is called
-                 # when this attribute is set; it should die() on
-                 # error, as it is wrapped in an eval { } block
+                 # this code reference is called when this
+                 # attribute is set, to check the value is
+                 # OK
                  check_func => sub {
                      die "too many segments"
-                         if ($ {$_[0]} > 30);
+                         if (${ shift } > 30);
                  },
                  # the default for this attribute.
                  init_default => 7,
@@ -46,6 +46,9 @@ objects from a Tangram-compatible object specification.
          ref => {
              grower => undef,
          },
+         # fields allowed by Class::Tangram but not ever
+         # stored - no type checking
+         transient => [ qw(_tangible) ],
      },
  };
  Class::Tangram::import_schema("Orange");
@@ -71,31 +74,39 @@ objects from a Tangram-compatible object specification.
  my $storage = Tangram::Relational->connect(Project->schema,
                                             $dsn, $u, $p);
 
- # OK
+ # This is how you create instances
  my $orange = Orange->new(juiciness => 8);
- my $juiciness = $orange->juiciness;   # returns 8
 
- # a "ref" must be set to a blessed object
+ # Store them
+ $storage->insert($orange);
+
+ # This is how you get values out of the objects
+ my $juiciness = $orange->juiciness;
+
+ # a "ref" must be set to a blessed object, any object
  my $grower = bless { name => "Joe" }, "Farmer";
  $orange->set_grower ($grower);
 
- # these are all illegal
- eval { $orange->set_juiciness ("Yum"); }; print $@;
- eval { $orange->set_segments (31); }; print $@;
+ # these are all illegal - type checking is fairly strict
+ eval { $orange->set_juiciness ("Yum"); };   print $@;
+ eval { $orange->set_segments (31); };       print $@;
  eval { $orange->set_grower ("Mr. Nice"); }; print $@;
 
  # if you prefer
  $orange->get( "juiciness" );
  $orange->set( juiciness => 123 );
 
+ # Re-configure init_default
+ $orange->set_init_default( juiciness => sub { int(rand(45)) } );
+
 =head1 DESCRIPTION
 
-Class::Tangram is a base class originally intended for use with
+Class::Tangram is a common base class originally intended for use with
 Tangram objects, that gives you free constructors, access methods,
 update methods, and a destructor that should help in breaking circular
-references for you. Type checking is achieved by parsing the schema
-for the object, which is contained within the object class in an
-exported variable C<$schema>.
+references for you. Type checking is achieved by parsing the Tangram
+schema for the object, which is contained within the object class in
+an exported variable C<$schema>.
 
 After writing this I found that it was useful for merely adding type
 checking and validation to arbitrary objects.  There are several
@@ -110,22 +121,28 @@ Class::Tangram:
    Set::Object => 1.02
    Pod::Constants => 0.11
    Test::Simple => 0.18
+   Date::Manip => 5.21
 
-Test::Simple is only required to run the test suite.
+Test::Simple and Date::Manip are only required to run the test suite.
+
+If you find Class::Tangram passes the test suite with earlier versions
+of the above modules, please send me an e-mail.
 
 =head2 MODULE RELEASE
 
-This is Class::Tangram version 1.06.
+This is Class::Tangram version 1.08.
 
 =cut
 
 use strict;
 use Carp qw(croak cluck);
 
-use vars qw($AUTOLOAD $VERSION);
+use vars qw($AUTOLOAD $VERSION %defaults);
 
-use Pod::Constants -trim => 1, 'MODULE RELEASE' => \$VERSION;
-BEGIN { $VERSION =~ s/^\$VERSION\s*=\s*// };
+use Set::Object;
+use Pod::Constants -trim => 1,
+    'MODULE RELEASE' => sub { ($VERSION) = /(\d+\.\d+)/ },
+    'TANGRAM TYPE TO FUNCTION MAPPING' => sub { %defaults = eval };
 
 local $AUTOLOAD;
 
@@ -278,13 +295,23 @@ sub get($$) {
     croak "attempt to read an illegal field $field in a $class"
 	if (!defined $check{$class}->{$field});
 
-    if ($types{$class}->{$field} =~ m/^i?set$/o) {
-	if (!defined $self->{$field}) {
-	    $self->{$field} = Set::Object->new();
-	}
-	if (wantarray) {
-	    return $self->{$field}->members;
-	}
+    # make sure we don't ever return "undef" for fields that might be
+    # used as a reference, and return contents of containers when in
+    # list context
+    if ((local $_ = $types{$class}->{$field}) =~ m/^i?set$/o) {
+
+	$self->{$field} ||= Set::Object->new();
+	return $self->{$field}->members if wantarray;
+
+    } elsif (m/^i?array$/o) {
+
+	$self->{$field} ||= [];
+	return @{ $self->{$field} } if wantarray;
+
+    } elsif ( m/^i?hash$/o)  {
+
+	$self->{$field} ||= {};
+	return %{ $self->{$field} } if wantarray;
     }
 
     return $self->{$field};
@@ -324,7 +351,8 @@ This only works if the attribute in question is a Set::Object.
 
 sub AUTOLOAD {
     my $self = shift;
-    UNIVERSAL::isa($self, "Class::Tangram") or croak "type mismatch";
+    UNIVERSAL::isa($self, "Class::Tangram")
+	    or croak "type mismatch/$self->$AUTOLOAD undefined";
 
     my $class = ref $self;
     exists $check{$class} or import_schema($class);
@@ -388,15 +416,47 @@ sub getset($$;$) {
 
 =item check_X (\$value)
 
-This series of functions checks that $value is of the type X, and
-within applicable bounds.  If there is a problem, then it will croak()
-the error.  These functions are not called from the code, but by the
-set() method on a particular attribute.
+This series of internal functions checks that $value is of the type X,
+and within applicable bounds.  If there is a problem, then it will
+croak() the error.  These functions are not called from the code, but
+by the set() method on a particular attribute.
 
-Available functions are:
+When Class::Tangram comes across a type in the schema, it first sets
+up the per-attribute code references to the "check" and "destroy"
+functions.  If there is no check/destroy in the below table, there
+must be a "parse", which is a parse_X function.  See parse_X, below
 
-  check_string - checks that the supplied value is less
-                 than 255 characters long.
+=head2 TANGRAM TYPE TO FUNCTION MAPPING
+
+ int         => { check => \&check_int },
+ real        => { check => \&check_real },
+ string      => { parse => \&parse_string },
+ ref         => { check => \&check_obj,
+		  destroy => \&destroy_ref },
+ array       => { check => \&check_array,
+		  destroy => \&destroy_array },
+ iarray      => { check => \&check_array,
+		  destroy => \&destroy_array },
+ flat_array  => { check => \&check_flat_array },
+ set         => { check => \&check_set,
+		  destroy => \&destroy_set },
+ iset        => { check => \&check_set,
+		  destroy => \&destroy_set },
+ dmdatetime  => { check => \&check_dmdatetime },
+ rawdatetime => { check => \&check_rawdatetime },
+ rawdate     => { check => \&check_rawdate },
+ rawtime     => { check => \&check_rawtime },
+ flat_hash   => { check => \&check_flat_hash },
+ transient   => { check => \&check_nothing },
+ hash        => { check => \&check_hash,
+		  destroy => \&destroy_hash },
+ perl_dump   => { check => \&check_nothing }
+
+=over
+
+=item check_string
+
+checks that the supplied value is less than 255 characters long.
 
 =cut
 
@@ -405,36 +465,35 @@ sub check_string {
 	if (length ${$_[0]} > 255);
 }
 
-=pod
+=item check_int
 
-  check_int    - checks that the value is a (possibly
-                 signed) integer
+checks that the value is a (possibly signed) integer
 
 =cut
 
 my $int_re = qr/^-?\d+$/;
 sub check_int {
-    croak "not an int"
-	if (${$_[0]} !~ m/$int_re/ms);
+    croak "${$_[0]} is not an int"
+	if (${$_[0]} !~ m/$int_re/o);
 }
 
-=pod
+=item check_real 
 
-  check_real   - checks that the value is a real number
-                 (m/^\d*(\.\d*)?(e\d*)?$/)
+checks that the value is a real number, by stringifying it and
+matching it against (m/^-?\d*(\.\d*)?(e-?\d*)?$/).  In the future, a
+test that isn't a bunch of arse will be used.
 
 =cut
 
 my $real_re = qr/^-?\d*(\.\d*)?(e-?\d*)?$/;
 sub check_real {
-    croak "not a real"
-	if (${$_[0]} !~ m/$real_re/ms);
+    croak "${$_[0]} is not a real"
+	if (${$_[0]} !~ m/$real_re/o);
 }
 
-=pod
+=item check_obj
 
-  check_obj    - checks that the supplied variable is a
-                 reference to a blessed object
+checks that the supplied variable is a reference to a blessed object
 
 =cut
 
@@ -442,26 +501,28 @@ sub check_real {
 my $obj_re = qr/^(?:HASH|ARRAY|SCALAR)?$/;
 sub check_obj {
     croak "not an object reference"
-	if ((ref ${$_[0]}) =~ m/$obj_re/);
+	if ((ref ${$_[0]}) =~ m/$obj_re/o);
 }
 
-=pod
+=item check_flat_array
 
-  check_flat_array
-               - checks that $value is a ref ARRAY
+checks that $value is a ref ARRAY and that all elements are unblessed
+scalars.  Does NOT currently check that all values are of the correct
+type (int vs real vs string, etc)
 
 =cut
 
 sub check_flat_array {
     croak "not a flat array"
 	if (ref ${$_[0]} ne "ARRAY");
+    croak "flat array may not contain references"
+	if (map { (ref $_ ? "1" : ()) } @{$_[0]});
 }
 
-=pod
+=item check_array
 
-  check_array  - checks that $value is a ref ARRAY, and that
-                 each element in the array is a reference to
-                 a blessed object.
+checks that $value is a ref ARRAY, and that each element in the array
+is a reference to a blessed object.
 
 =cut
 
@@ -470,13 +531,13 @@ sub check_array {
 	if (ref ${$_[0]} ne "ARRAY");
     for my $a (@{${$_[0]}}) {
 	croak "member in array not an object reference"
-	    if ((ref $a) =~ m/$obj_re/);
+	    if ((ref $a) =~ m/$obj_re/o);
     }
 }
 
-=pod
+=item check_set
 
-  check_set    - checks that $value->isa("Set::Object")
+checks that $value->isa("Set::Object")
 
 =cut
 
@@ -485,53 +546,73 @@ sub check_set {
 	unless (UNIVERSAL::isa(${$_[0]}, "Set::Object"));
 }
 
-=pod
+=item check_rawdate
 
-  check_rawdatetime 
-               - checks that $value is of the form
-                 YYYY-MM-DD HH:MM:SS
+checks that $value is of the form YYYY-MM-DD, or YYYYMMDD, or YYMMDD.
 
 =cut
 
 # YYYY-MM-DD HH:MM:SS
-my $rawdatetime_re = qr/^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}:\d{2}$/;
+my $rawdate_re = qr/^(?:  \d{4}-\d{2}-\d{2}
+                     |    (?:\d\d){3,4}
+                     )$/x;
+sub check_rawdate {
+    croak "invalid SQL rawdate"
+	unless (${$_[0]} =~ m/$rawdate_re/o);
+}
+
+=item check_rawtime
+
+checks that $value is of the form HH:MM(:SS)?
+
+=cut
+
+# YYYY-MM-DD HH:MM:SS
+my $rawtime_re = qr/^\d{1,2}:\d{2}(?::\d{2})?$/;
+sub check_rawtime {
+    croak "invalid SQL rawtime"
+	unless (${$_[0]} =~ m/$rawtime_re/o);
+}
+
+=item check_rawdatetime
+
+checks that $value is of the form YYYY-MM-DD HH:MM(:SS)? (the time
+and/or the date can be missing), or a string of numbers between 6 and
+14 numbers long.
+
+=cut
+
+my $rawdatetime_re = qr/^(?:
+			    # YYYY-MM-DD HH:MM:SS
+		            (?: (?:\d{4}-\d{2}-\d{2}\s+)?
+		                \d{1,2}:\d{2}(?::\d{2})?
+			    |   \d{4}-\d{2}-\d{2}
+			    )
+		         |  # YYMMDD, etc
+		            (?:\d\d){3,7}
+		         )$/x;
 sub check_rawdatetime {
-    croak "invalid SQL rawdatetime"
-	unless (${$_[0]} =~ m/$rawdatetime_re/);
+    croak "invalid SQL rawdatetime dude"
+	unless (${$_[0]} =~ m/$rawdatetime_re/o);
 }
 
-=pod
+=item check_dmdatetime
 
-  check_time
-              - checks that $value is of the form
-                HH:MM(:SS)?
+checks that $value is of the form YYYYMMDDHH:MM:SS, or those allowed
+for rawdatetime.
 
 =cut
 
-my $time_re = qr/^\d{1,2}:\d{2}(?::\d{2})?$/;
-sub check_time {
-    croak "invalid SQL time"
-	unless (${$_[0]} =~ m/$time_re/);
+sub check_dmdatetime {
+    croak "invalid SQL rawdatetime dude"
+	unless (${$_[0]} =~ m/^\d{10}:\d\d:\d\d$|$rawdatetime_re/o);
 }
 
-=pod
+=item check_flat_hash
 
-  check_timestamp
-              - checks that $value is of the form
-                (YYYY-MM-DD )?HH:MM(:SS)?
-
-=cut
-
-my $timestamp_re = qr/^(?:\d{4}-\d{2}-\d{2}\s+)?\d{1,2}:\d{2}(?::\d{2})?$/;
-sub check_timestamp {
-    croak "invalid SQL timestamp"
-	unless (${$_[0]} =~ m/$timestamp_re/);
-}
-
-=pod
-
-  check_flat_hash
-               - checks that $value is a ref HASH
+checks that $value is a ref HASH and all values are scalars.  Does NOT
+currently check that all values are of the correct type (int vs real
+vs string, etc)
 
 =cut
 
@@ -544,11 +625,10 @@ sub check_flat_hash {
     }
 }
 
-=pod
+=item check_hash
 
-  check_hash   - checks that $value is a ref HASH, that
-                 every key in the hash is a scalar, and that
-                 every value is a blessed object.
+checks that $value is a ref HASH, that every key in the hash is a
+scalar, and that every value is a blessed object.
 
 =cut
 
@@ -563,9 +643,11 @@ sub check_hash {
     }
 }
 
-=pod
+=item check_nothing
 
-  check_nothing - checks whether Australians like sport
+checks whether Australians like sport
+
+=back
 
 =cut
 
@@ -581,9 +663,13 @@ destroyed also>.  In other words, do not allow distinct objects to
 share Set::Object containers or hash references in their attributes,
 otherwise when one gets destroyed the others will lose their data.
 
-Available functions are:
+Available functions:
 
-  destroy_array - empties an array
+=over
+
+=item destroy_array
+
+empties an array
 
 =cut
 
@@ -591,13 +677,14 @@ sub destroy_array {
     my $self = shift;
     my $attr = shift;
     my $t = tied $self->{$attr};
-    @{$self->{$attr}} = () unless ($t =~ m,Tangram::CollOnDemand,);
+    @{$self->{$attr}} = ()
+	unless (defined $t and $t =~ m,Tangram::CollOnDemand,);
     delete $self->{$attr};
 }
 
-=pod
+=item destroy_set
 
-  destroy_set   - calls Set::Object::clear to clear the set
+Calls Set::Object::clear to clear the set
 
 =cut
 
@@ -605,20 +692,17 @@ sub destroy_set {
     my $self = shift;
     my $attr = shift;
 
-    # warnings suck sometimes
-    local $^W = 0;
-
     my $t = tied $self->{$attr};
-    return if ($t =~ m,Tangram::CollOnDemand,);
+    return if (defined $t and $t =~ m,Tangram::CollOnDemand,);
     if (ref $self->{$attr} eq "Set::Object") {
 	$self->{$attr}->clear;
     }
     delete $self->{$attr};
 }
 
-=pod
+=item destroy_hash
 
-  destroy_hash  - empties a hash
+empties a hash
 
 =cut
 
@@ -631,12 +715,9 @@ sub destroy_hash {
     delete $self->{$attr};
 }
 
-=pod
+=item destroy_ref
 
-  destroy_ref   - destroys a reference.  Contains a hack for
-                  Tangram so that if this ref is not loaded,
-                  it will not be autoloaded when it is
-                  attempted to be accessed.
+destroys a reference.
 
 =cut
 
@@ -645,6 +726,8 @@ sub destroy_ref {
     delete $self->{shift};
 }
 
+=back
+
 =item parse_X ($attribute, { schema option })
 
 Parses the schema option field, and returns one or two closures that
@@ -652,15 +735,34 @@ act as a check_X and a destroy_X function for the attribute.
 
 This is currently a very ugly hack, parsing the SQL type definition of
 an object.  But it was bloody handy in my case for hacking this in
-quickly.  This is unmanagably unportable across databases.  This
-should be replaced by primitives that go the other way, building the
-SQL type definition from a more abstract definition of the type.
+quickly.  This is probably unmanagably unportable across databases;
+but send me bug reports on it anyway, and I'll try and make the
+parsers work for as many databases as possible.
+
+This perhaps should be replaced by primitives that go the other way,
+building the SQL type definition from a more abstract definition of
+the type.
 
 Available functions:
 
-  parse_string  - parses SQL types of:
+=over
+
+=item parse_string
+
+parses SQL types of:
+
+=over
 
 =cut
+
+use vars qw($quoted_part $sql_list);
+
+$quoted_part = qr/(?: \"([^\"]+)\" | \'([^\']+)\' )/x;
+$sql_list = qr/\(\s*
+		  (
+		      $quoted_part
+		        (?:\s*,\s* $quoted_part )*
+	          ) \s*\)/x;
 
 sub parse_string {
 
@@ -673,11 +775,9 @@ sub parse_string {
 	return \&check_string;
     }
 
-=pod
+=item CHAR(N), VARCHAR(N)
 
-      CHAR(N), VARCHAR(N)
-          closure checks length of string is less
-          than N characters
+closure checks length of string is less than N characters
 
 =cut
 
@@ -688,17 +788,15 @@ sub parse_string {
 		if (length ${$_[0]} > $max_length);
 	};
 
-=pod
+=item TINYBLOB, BLOB, LONGBLOB
 
-      TINYBLOB, BLOB, LONGBLOB
-      TINYTEXT, TEXT, LONGTEXT
-          checks max. length of string to be 255,
-          65535 or 16777215 chars respectively
+checks max. length of string to be 255, 65535 or 16777215 chars
+respectively.  Also works with "TEXT" instead of "BLOB"
 
 =cut
 
-    } elsif ($option->{sql} =~ m/^\s*(tiny|long|medium)?
-				 (blob|text)/ix) {
+    } elsif ($option->{sql} =~ m/^\s*(?:tiny|long|medium)?
+				 (?:blob|text)/ix) {
 	my $max_length = ($1 ? ($1 eq "tiny"?255:2**24 - 1)
 			  : 2**16 - 1);
 	return sub {
@@ -706,57 +804,47 @@ sub parse_string {
 		if (length ${$_[0]} > $max_length);
 	};
 
-=pod
+=item SET("members", "of", "set")
 
-      SET("members", "of", "set")
-          checks that the value passed is valid as
-          a SQL set type, and that all of the 
-          passed values are allowed to be a member
-          of that set
+checks that the value passed is valid as a SQL set type, and that all
+of the passed values are allowed to be a member of that set.
 
 =cut
 
-    } elsif ($option->{sql} =~
-	     m/^\s*set\s*\(
-	       (\"[^\"]+\" (?:\s*,\s*\"[^\"]+\")* \s* )
-	       \)\s*$/xi) {
-	my $members = $1;
-	my ($member, %members);
-	while (($member, $members) =
-	       ($members =~ m/^[,\s]*\"([^\"]+)\"(.*)$/)) {
-	    $members{lc($member)} = 1;
-	}
+    } elsif (my ($members) = $option->{sql} =~
+	     m/^\s*set\s*$sql_list/oi) {
+
+	my %members;
+	$members{lc($1 || $2)} = 1
+	    while ( $members =~ m/\G[,\s]*$quoted_part/cog );
+
 	return sub {
-	    for my $x (split /,/, ${$_[0]}) {
+	    for my $x (split /\s*,\s*/, ${$_[0]}) {
 		croak ("SQL set badly formed or invalid member $x "
 		       ." (SET" . join(",", keys %members). ")")
 		    if (not exists $members{lc($x)});
 	    }
 	};
 
-=pod
+=item ENUM("possible", "values")
 
-      ENUM("possible", "values")
-          checks that the value passed is one of
-          the allowed values.
+checks that the value passed is one of the allowed values.
 
 =cut
 
-    } elsif ($option->{sql} =~
-	     m/^\s*enum\s*\(
-	       (\"[^\"]+\" (?:\s*,\s*\"[^\"]+\")* \s* )
-	       \)\s*/xi) {
-	my $values = $1;
-	my ($value, %values);
-	while (($value, $values) =
-	       ($values =~ m/^[,\s]*\"([^\"]+)\"(.*)$/)) {
-	    $values{lc($value)} = 1;
-	}
+    } elsif (my ($values) = $option->{sql} =~
+	     m/^\s*enum\s*$sql_list/oi ) {
+
+	my %values;
+	$values{lc($1 || $2)} = 1
+	    while ( $values =~ m/\G[,\s]*$quoted_part/gc);
+
 	return sub {
 	    croak ("invalid enum value ${$_[0]} must be ("
 		   . join(",", keys %values). ")")
 		if (not exists $values{lc(${$_[0]})});
 	}
+
 
     } else {
 	die ("Please build support for your string SQL type in "
@@ -764,32 +852,9 @@ sub parse_string {
     }
 }
 
-# Here is where I map Tangram::Type types to functions.
-# Format:
-#  type => {
-#      check => \&check_X
-#      parse => \&parse_type
-#      destroy => \&destroy_X
-#  }
-#
-my %defaults =
-    (
-     int         => { check => \&check_int },
-     real        => { check => \&check_real },
-     string      => {             parse => \&parse_string },
-     ref         => { check => \&check_obj,     destroy => \&destroy_ref },
-     array       => { check => \&check_array,   destroy => \&destroy_array },
-     iarray      => { check => \&check_array,   destroy => \&destroy_array },
-     flat_array  => { check => \&check_flat_array },
-     set         => { check => \&check_set,     destroy => \&destroy_set },
-     iset        => { check => \&check_set,     destroy => \&destroy_set },
-     rawdatetime => { check => \&check_rawdatetime },
-     time        => { check => \&check_time },
-     timestamp   => { check => \&check_timestamp },
-     flat_hash   => { check => \&check_flat_hash },
-     hash        => { check => \&check_hash,    destroy => \&destroy_hash },
-     perl_dump   => { check => \&check_nothing }
-    );
+=back
+
+=back
 
 =item import_schema($class)
 
@@ -801,11 +866,17 @@ given class.
 This function updates Tangram schema option hashes, with the following
 keys:
 
-  check_func   - supply/override the check_X function for
-                 this attribute.
+=over
 
-  destroy_func - supply/override the destroy_X function for
-                 this attribute
+=item check_func
+
+supply/override the check_X function for this attribute.
+
+=item destroy_func
+
+supply/override the destroy_X function for this attribute
+
+=back
 
 See the SYNOPSIS section for an example of supplying a check_func in
 an object schema.
@@ -815,13 +886,37 @@ an object schema.
 sub import_schema($) {
     my $class = shift;
 
+    # FIXME - expand the run time type information functions, then use
+    # them for this function.
+
     eval {
 	my ($fields, $bases, $abstract);
 	{
 	    no strict 'refs';
-	    $fields = ${"${class}::schema"}->{fields};
-	    $bases = ${"${class}::schema"}->{bases};
-	    $abstract = ${"${class}::schema"}->{abstract};
+	    local $^W=0;
+	    eval {
+		$fields = ${"${class}::schema"}->{fields};
+		$bases = ${"${class}::schema"}->{bases};
+		$abstract = ${"${class}::schema"}->{abstract};
+	    };
+	    if ( !$fields and !$bases ) {
+		# hack to pass the "empty inheritance" test
+		my @stack = @{"${class}::ISA"};
+		my %seen = map { $_ => 1 } $class, __PACKAGE__;
+		$bases = [];
+		while ( my $super = pop @stack ) {
+		    if ( defined ${"${super}::schema"} ) {
+			push @$bases, $super;
+		    } else {
+			push @stack, grep { !$seen{$_}++ }
+			    @{"${super}::ISA"};
+		    }
+		}
+		@$bases
+		    or die ("No schema and no Class::Tangram "
+			    ."superclass for $class; define "
+			    ."${class}::schema!");
+	    }
 	}
 
 	my $check_class = { };
@@ -845,13 +940,14 @@ sub import_schema($) {
 	    # Note that the order of your bases is significant, that
 	    # is if you are using multiple iheritance then the later
 	    # classes override the earlier ones.
-	    #for my $super ( Class::ISA::super_path($class) ) {
 	    for my $super ( @$bases ) {
 		import_schema $super unless (exists $check{$super});
 
 		# copy each of the per-class configuration hashes to
 		# this class as defaults.
 		my ($k, $v);
+
+		# FIXME - this repetition of code is getting silly :)
 		$types_class->{$k} = $v
 		    while (($k, $v) = each %{ $types{$super} } );
 		$check_class->{$k} = $v
@@ -1042,7 +1138,7 @@ internally to verify attributes, create objects and so on.
 
 Class::Tangram keeps six internal hashes:
 
-=over 4
+=over
 
 =item %types
 
@@ -1096,7 +1192,7 @@ Now, every new object will share the same hash for that attribute.
 There are currently four functions that allow you to access parts of
 this information.
 
-=over 4
+=over
 
 =item attribute_options($class)
 
@@ -1148,6 +1244,39 @@ sub is_abstract {
 
 =back
 
+=item Class->set_init_default(attribute => $value);
+
+Sets the default value on an attribute for newly created "Class"
+objects, as if it had been declared with init_default.  Can be called
+as a class or an instance method.
+
+=cut
+
+sub set_init_default {
+    my $invocant = shift;
+    my $class = ref $invocant || $invocant;
+
+    exists $init_defaults{$class} or import_schema($class);
+
+    while ( my ($attribute, $value) = splice @_, 0, 2) {
+	$init_defaults{$class}->{$attribute} = $value;
+    }
+}
+
+package Tangram::Transient;
+
+BEGIN {
+    eval "use base qw(Tangram::Type)";
+    if ( $@ ) {
+	# no tangram
+    } else {
+	$Tangram::Schema::TYPES{transient} =  bless {}, __PACKAGE__;
+    }
+}
+
+sub coldefs { }
+
+
 =head1 SEE ALSO
 
 L<Tangram::Schema>
@@ -1158,15 +1287,9 @@ B<A guided tour of Tangram, by Sound Object Logic.>
 
 =head1 BUGS/TODO
 
-More datetime types.  I originally avoided the DMDateTime type because
-Date::Manip is self-admittedly the most bloated module on CPAN, and I
-didn't want to be seen encouraging it.  Then I found out about
-autosplit :-}.
-
 More AUTOLOAD methods, in particular for container types such as
-array, hash, etc.
-
-This documentation should be easy enough for a fool to understand.
+array, hash, etc.  [on second thoughts, this might not be necessary.
+You can always return a tied hash].
 
 There should be more functions for breaking loops; in particular, a
 standard function called drop_refs($obj), which replaces references to
@@ -1174,6 +1297,12 @@ $obj with the appropriate Tangram::RefOnDemand so that an object can
 be unloaded via Tangram::Storage->unload() and actually have a hope of
 being reclaimed.  Another function that would be handy would be a
 deep "mark" operation for mark & sweep garbage collection.
+
+Need to think about writing some functions using Inline for speed.
+
+Allow init_default to be set in import function?
+
+non-persistent attributes
 
 =head1 AUTHOR
 

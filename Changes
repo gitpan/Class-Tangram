@@ -1,5 +1,25 @@
 Revision history for Perl extension Class::Tangram
 
+2002-02-10
+   o Release 1.08
+   o Added "transient" type
+   o Documentation changes
+
+2002-02-09
+   o Release 1.07
+   o "array" and "hash" types are now as magical as set types on
+     "get()" - that is, if they are undefined, an empty array is
+     returned rather than undef.  Also, if evaluated in list context,
+     the members of the array are returned in a list rather than a
+     reference to the array.
+   o Added &YourClass::set_init_default(field => $value)
+   o made test suite a bit more complete
+   o Removed support for bogus non-existant "time", "timestamp"
+     Tangram types
+   o Support for "rawdate", "rawtime", "dmdatetime".  This completes
+     support for all standard Tangram data types.
+   o Class::Tangram classes now pass the "empty sub-class" test
+
 2001-11-21
 
    o Release 1.06

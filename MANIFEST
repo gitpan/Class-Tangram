@@ -4,8 +4,13 @@ MANIFEST
 Tangram.pm
 README
 t/01-tangram.t
+t/02-transient.t
 debian/control
 debian/rules
 debian/changelog
 debian/README.Debian
 debian/copyright
+debian/files
+debian/libclass-tangram-perl.postinst.debhelper
+debian/libclass-tangram-perl.prerm.debhelper
+debian/libclass-tangram-perl.substvars

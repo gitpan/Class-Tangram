@@ -1,10 +1,12 @@
-#   Hey, emacs - this is -*- perl -*- !!
+#!/usr/bin/perl -w
 #
 #  test script for Tangram::Object
 #
 
 use strict;
-use Test::More tests => 34;
+use Test::More tests => 56;
+use Data::Dumper;
+use Date::Manip qw(ParseDate);
 
 #---------------------------------------------------------------------
 # Test 1:   Check Class::Tangram loads
@@ -70,8 +72,6 @@ my $counter;
 
 $schema = {
 	   fields => {
-		      # nothing, this is an association class with no data.
-		      # these fields are used for later tests
 		      string =>
 		      {
 		       foo => {
@@ -107,6 +107,57 @@ $schema = {
 		      ref => [ qw(parent_location) ],
 		     }
 	  };
+
+package Testing;
+use vars qw(@ISA $schema);
+@ISA = qw(Class::Tangram);
+# a testing class, contains lots of different types
+$schema = {
+	   fields => {
+		      array => { test_a => { class => "Credit" } },
+		      hash  => { test_h => { class => "Credit" } },
+		      rawdatetime => [ qw( birth death ) ],
+		      rawdate => [ qw( depart return ) ],
+		      rawtime => [ qw( breakfast lunch dinner ) ],
+		      dmdatetime => [ qw( attack retreat ) ],
+
+		      string =>
+		      {
+		       enum_t => { sql => ("enum('bucket', 'green', "
+					   ."'ambiguity')")         },
+		       enum_G => { sql => ('enum("dat", "is", "wot",'
+					  .'"I", "as", "erd")')     },
+		       set_t  => { sql => ("set ('bucket', 'green', "
+					   ."'ambiguity')")         },
+		       set_G  => { sql => ('set ("dat", "is", "wot",'
+					  .'"I", "as", "erd")')     },
+
+		      },
+		      transient =>
+		      {
+		       transient_t =>
+		       {
+			check_func => sub {
+			    die "not a code ref"
+				unless (ref ${ (shift) } eq "CODE");
+			}
+		       }
+		      },
+		     }
+	  };
+
+# empty subclass test
+package Testing::One;
+use vars qw(@ISA);
+@ISA=qw(Testing);
+
+package Testing::One::Two;
+use vars qw(@ISA);
+@ISA=qw(Testing::One Date::Manip);
+
+package Testing::One::Two::Three;
+use vars qw(@ISA);
+@ISA=qw(Testing::One::Two);
 
 #---------------------------------------------------------------------
 package main;
@@ -196,9 +247,30 @@ is($locations[0]->location, "Grappenhall", "new Location");
 # string
 eval { $actors[0]->set_name("Timothy Curry"); };
 is ($@, "", "Set string to legal value");
-
 eval { $actors[0]->set_name("Tim Curry" x 100); };
 isnt ($@, "", "Set string to illegal value");
+
+# string sub-types: tinyblob, blob, longblob
+eval {
+    my $test_obj = Testing->new();
+
+    $test_obj->set_enum_t("bucket");
+    $test_obj->set_enum_t("AmBiGuIty");
+    $test_obj->set_enum_G("wOt");
+    $test_obj->set_enum_G("erD");
+    $test_obj->set_set_t("bucket,ambiguity");
+    $test_obj->set_set_G("wot,dat , I, as,erd");
+};
+is ($@, "", "Set set/enum to legal value");
+
+my $test_obj = Testing->new();
+my $allbad = 1;
+eval { $test_obj->set_enum_t("wot"); }; $@ or ($allbad = 0);
+eval { $test_obj->set_enum_G("bucket"); }; $@ or ($allbad = 0);
+eval { $test_obj->set_set_t("bucket,cheese"); }; $@ or ($allbad = 0);
+eval { $test_obj->set_set_G("blue"); }; $@ or ($allbad = 0);
+
+ok($allbad, "Set set/enum to illegal value");
 
 # int
 eval { $movies[0]->set_release_year("-2000"); };
@@ -229,21 +301,56 @@ is ($@, "", "Set ref to legal value");
 eval { $actors[0]->set_birth_location("Somewhere, over the rainbow"); };
 isnt ($@, "", "Set ref to illegal value");
 
-# flat array
-
 # array
+{
+    my @array = $test_obj->test_a;
+    my $scalar = $test_obj->test_a;
 
-# set
+    ok((@array == 0 and ref $scalar eq "ARRAY"),
+       "Class->get(array_type) for uninitialised array");
+};
 
 # rawdatetime
+eval { $actors[0]->set_birthdate("yesterday"); };
+isnt ($@, "", "Set rawdatetime to illegal value");
+
+eval { $actors[0]->set_birthdate("1234-02-02 12:34:56") };
+is ($@, "", "Set rawdatetime to legal value");
 
 # time
+eval { $actors[0]->set_birthdate("yesterday"); };
+isnt ($@, "", "Set rawdatetime to illegal value");
+eval { $actors[0]->set_birthdate("1234-02-02 12:34:56") };
+is ($@, "", "Set rawdatetime to legal value");
 
-# timestamp
+# rawdate
+eval { $test_obj->set_depart("2002-03-22"); };
+is ($@, "", "Set rawdatetime to legal value");
+eval { $test_obj->set_depart("2002-03-22 12:34:56"); };
+isnt ($@, "", "Set rawdate to illegal value");
+
+# rawtime
+eval { $test_obj->set_breakfast("5:45") };
+is ($@, "", "Set breakfast to insane time");
+eval { $test_obj->set_breakfast("sparrowfart") };
+isnt ($@, "", "Set breakfast to insane and illegal value");
+
+# dmdatetime
+eval { $test_obj->set_attack(ParseDate("today")) };
+is ($@, "", "Set dmdatetime to valid value");
+
+# ooh, wouldn't this be nice if it worked?
+eval { $test_obj->set_attack("today") };
+isnt ($@, "", "Set dmdatetime to invalid value");
 
 # flat_hash
+eval {
+    while ( my ($k, $v) = each %{$test_obj->test_h}) {
+	1;
+    }
+};
+is ($@, "", "Interate over undef hash attribute");
 
-# hash
 
 #---------------------------------------------------------------------
 # check init_default
@@ -251,7 +358,13 @@ is($credits[0]->foo, "baz", "init_default scalar");
 is($credits[0]->bar, 1, "init_default sub");
 is($credits[3]->bar, 4, "init_default sub");
 
-# need to check hash, array versions... later
+$credits[0]->set_init_default(foo => "cheese");
+is(Credit->new()->foo, "cheese",
+   "set_init_default as instance method");
+Credit->set_init_default(foo => "banana");
+is(Credit->new()->foo, "banana",
+   "set_init_default as Class method");
+
 
 #---------------------------------------------------------------------
 # check check_func
@@ -297,3 +410,30 @@ ok(!$actors[0]->credits_includes($foo[1]), "AUTOLOAD _clear");
 $actors[0]->credits_insert($foo[1]);
 ok($actors[0]->credits_includes($foo[1]), "AUTOLOAD _insert");
 is($actors[0]->credits_size, 1, "AUTOLOAD _size");
+
+
+#---------------------------------------------------------------------
+# empty subclass test
+my $test = Testing::One->new();
+eval { $test->attack };
+is ($@, "", "Empty subclass test 1 passed");
+
+$test = Testing::One::Two->new();
+eval { $test->attack };
+is ($@, "", "Empty subclass test 2 passed");
+
+$test = Testing::One::Two::Three->new();
+eval { $test->attack };
+is ($@, "", "Empty subclass test 3 passed");
+
+#---------------------------------------------------------------------
+# transient types
+eval { $test->set_transient_t(sub { 37 }); };
+is ($@, "", "Set transient type to legal value");
+is ($test->transient_t->(), 37, "Execute transient type");
+eval { $test->set_transient_t("test"); };
+isnt ($@, "", "Set transient type to illegal value");
+
+
+# Still to write tests for:
+#   - run time type information functions

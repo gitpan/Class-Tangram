@@ -1,0 +1,7 @@
+# Automatically added by dh_installdocs
+if [ "$1" = "configure" ]; then
+	if [ -d /usr/doc -a ! -e /usr/doc/libclass-tangram-perl -a -d /usr/share/doc/libclass-tangram-perl ]; then
+		ln -sf ../share/doc/libclass-tangram-perl /usr/doc/libclass-tangram-perl
+	fi
+fi
+# End automatically added section

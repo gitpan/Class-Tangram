@@ -1,4 +1,22 @@
-lib-prereq-pm-perl (1.06-1) unstable; urgency=low
+libclass-tangram-perl (1.08-2) unstable; urgency=low
+
+  * Now loads Set::Object
+
+ -- Sam Vilain <sam@vilain.net>  Mon, 11 Feb 2002 10:20:50 +0000
+
+libclass-tangram-perl (1.08-1) unstable; urgency=low
+
+  * Updated to 1.08
+
+ -- Sam Vilain <sam@vilain.net>  Mon, 11 Feb 2002 01:56:19 +0000
+
+libclass-tangram-perl (1.07-1) unstable; urgency=low
+
+  * Updated to 1.07
+
+ -- Sam Vilain <sam@vilain.net>  Sat,  9 Feb 2002 15:18:58 +0000
+
+libclass-tangram-perl (1.06-1) unstable; urgency=low
 
   * Initial Release as debian package
 

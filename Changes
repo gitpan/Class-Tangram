@@ -1,6 +1,13 @@
 Revision history for Perl extension Class::Tangram
 
-2002-04-11
+2002-04-15
+   o Release 1.11
+   o Minor Bugfix - "iset" default init_default had a typo relating to
+     the cleanup.  Should have known it would happen, making releases
+     at 2:43am
+   o Added test for above bugfix
+
+2002-04-15
    o Release 1.10
    o Added "required" attribute, contributed by Chuck Owen
      <owensc@enc.edu>

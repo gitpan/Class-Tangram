@@ -5,7 +5,7 @@
 
 use strict;
 use lib "../blib/lib";
-use Test::More tests => 72;
+use Test::More tests => 73;
 use Data::Dumper;
 use Date::Manip qw(ParseDate);
 
@@ -263,6 +263,7 @@ eval {
 		     birth_location => $locations[1],
 		     credits =>
 		     Set::Object->new( $credits[4] ) ),
+	 new Person(),
 	);
 
 };
@@ -428,6 +429,7 @@ isnt($@, "", "Set invalid field");
 
 #---------------------------------------------------------------------
 # Set::Object functions
+is(ref $actors[2]->{credits}, "Set::Object", "iset init_default");
 my @foo = $actors[0]->credits;
 is ($#foo, 3, "list context get of set");
 my $foo = $actors[0]->credits;

@@ -171,7 +171,7 @@ of the above modules, please send me an e-mail.
 
 =head2 MODULE RELEASE
 
-This is Class::Tangram version 1.10.
+This is Class::Tangram version 1.11.
 
 =cut
 
@@ -540,7 +540,7 @@ covered by the section on C<parse_X> functions, below.
 
  iset        => { check_func   => \&check_set,
 		  destroy_func => \&destroy_set,
-		  default      => sub { Set::Object->new() }, },
+		  init_default => sub { Set::Object->new() }, },
 
  dmdatetime  => { check_func   => \&check_dmdatetime },
  rawdatetime => { check_func   => \&check_rawdatetime },
@@ -908,7 +908,7 @@ respectively.  Also works with "TEXT" instead of "BLOB"
 			  : 2**16 - 1);
 	return sub {
 	    die "string too long for $attribute"
-		if (length ${$_[0]} > $max_length);
+		if (${$_[0]} and length ${$_[0]} > $max_length);
 	};
 
 =item SET("members", "of", "set")
@@ -1101,9 +1101,8 @@ sub import_schema($) {
 		$bases = ${"${class}::schema"}->{bases};
 		$abstract = ${"${class}::schema"}->{abstract};
 	    };
-	    if ( !$fields and !$bases ) {
-		# hack to pass the "empty inheritance" test
-		my @stack = @{"${class}::ISA"};
+	    if ( my @stack = @{"${class}::ISA"}) {
+		# clean "bases" information from @ISA
 		my %seen = map { $_ => 1 } $class, __PACKAGE__;
 		$bases = [];
 		while ( my $super = pop @stack ) {
@@ -1114,10 +1113,11 @@ sub import_schema($) {
 			    @{"${super}::ISA"};
 		    }
 		}
-		@$bases
-		    or die ("No schema and no Class::Tangram "
-			    ."superclass for $class; define "
-			    ."${class}::schema!");
+		if ( !$fields and !@$bases ) {
+		    die ("No schema and no Class::Tangram "
+			 ."superclass for $class; define "
+			 ."${class}::schema!");
+		}
 	    }
 	}
 

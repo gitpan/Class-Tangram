@@ -1,8 +1,40 @@
 Revision history for Perl extension Class::Tangram
 
-2003-05-19
+2004-01-01
+   o Release 1.54
+   o Many fixes for the intermediate classes change below
+   o Check functions on setters for collections
+
+2003-10-27
+   o Release 1.53
+   o Added intermediate classes, so that calling $self->SUPER::get_foo
+     works as OO discipline dictates.
+   o Removed function prototypes
+   o import_schema() will now return immediately if called twice for a
+     class
+
+2003-10-27
+   o Release 1.52
+   o Various minor fixes
+   o Major enhancements to the operation of Class::Tangram::Generator.
+     `use Class' when `Class' is a part of the Generator now works.
+
+2003-08-12
+   o Release 1.51
+   o Implements a work-around for Tangram on Perl 5.8.0
+   o Now auto-loads Tangram components (Tangram::Type classes) if it
+     can
+   o Added Class::Tangram::Generator
+
+2003-07-01
+   o Release 1.50
+   o Container ubiquity (see the README)
+   o Companion attributes (explicit back-references)
+
+2002-09-15
    o Release 1.13
-   o Removal of dependancy upon Pod::Constants
+   o Scrapped Pod::Constants bullshit
+   o some 
 
 2002-05-29
    o Release 1.12
@@ -24,7 +56,7 @@ Revision history for Perl extension Class::Tangram
 
 2002-04-15
    o Release 1.10
-   o Added "required" attribute, contributed by Chuck Owen
+   o Added "required" attribute, contributed by Charles Owens
      <owensc@enc.edu>
    o Much cleanup of code, particularly the import_schema function.
    o Removed seemingly superfluous check for tied values of

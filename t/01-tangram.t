@@ -3,9 +3,9 @@
 #  test script for Tangram::Object
 #
 
-use strict;
+use strict 'vars', 'subs';
 use lib "../blib/lib";
-use Test::More tests => 80;
+use Test::More tests => 88;
 use Data::Dumper;
 use Date::Manip qw(ParseDate);
 
@@ -42,6 +42,8 @@ $schema = {
 		      string => [ qw(name) ],
 		      rawdatetime => [ qw(birthdate) ],
 		      ref => [ qw(birth_location) ],
+		      flat_hash => [ qw(flat_hash) ],
+		      flat_array => [ qw(flat_array) ],
 		      real => { height => undef, },
 		      # This person also has a set of credits
 		      iset =>
@@ -378,10 +380,10 @@ eval { $test_obj->set_attack(ParseDate("today")) };
 is ($@, "", "Set dmdatetime to valid value");
 
 # ooh, wouldn't this be nice if it worked?
-eval { $test_obj->set_attack("today") };
+eval { $test_obj->set_attack("yestoday") };
 isnt ($@, "", "Set dmdatetime to invalid value");
 
-# flat_hash
+# empty hash
 eval {
     while ( my ($k, $v) = each %{$test_obj->test_h}) {
 	1;
@@ -389,6 +391,25 @@ eval {
 };
 is ($@, "", "Interate over undef hash attribute");
 
+# flat_hash
+eval {
+    while ( my ($k, $v) = each %{$actors[0]->flat_hash}) {
+	die "empty hash not so empty; $k => $v";
+    }
+};
+is ($@, "", "Interate over undef flat_hash attribute");
+is_deeply( [ $actors[0]->flat_hash ], [ ],
+	   "Array context get flat_hash");
+
+# flat_array
+eval {
+    for (@{$actors[0]->flat_array}) {
+	die "empty array not so empty; $_";
+    }
+};
+is_deeply( [ $actors[0]->flat_array ], [ ],
+	   "Array context get flat_array");
+is ($@, "", "Interate over undef flat_array attribute");
 
 #---------------------------------------------------------------------
 # check init_default
@@ -449,7 +470,6 @@ ok(!$actors[0]->credits_includes($foo[1]), "AUTOLOAD _clear");
 $actors[0]->credits_insert($foo[1]);
 ok($actors[0]->credits_includes($foo[1]), "AUTOLOAD _insert");
 is($actors[0]->credits_size, 1, "AUTOLOAD _size");
-
 
 #---------------------------------------------------------------------
 # empty subclass test
@@ -540,6 +560,21 @@ eval { Tangram::Toaster::dodge(sub {  Fussy->create(); }) };
 isnt ($@, "", "'required' - short object, Tangram::+main:: caller, subclass::new");
 eval { Tangram::Toaster::dodge ( sub {  Fussy->create(baz => "cheese", bar => "thrrppp"); }) };
 is ($@, "", "'required' - full object, Tangram::+main:: caller, subclass::new");
+
+#----------------------------------------
+#  $object->new()
+my $doppelgaenger = $actors[0]->new();
+is($doppelgaenger->name, $actors[0]->name, "\$object->new()");
+isnt($doppelgaenger, $actors[0], "\$object->new() returns a copy");
+
+$doppelgaenger = $actors[0]->new(name => "Joe Sullivan");
+isnt($doppelgaenger->name, $actors[0]->name,
+   "\$object->new() can take arguments");
+
+*Person::get_name = sub { return "John Malcovich" };
+my $john = $actors[0]->new();
+undef *Person::get_name;
+is($john->name, "John Malcovich", "copy uses getters");
 
 # Still to write tests for:
 #   - run time type information functions

@@ -23,10 +23,9 @@ build: build-stamp
 build-stamp:
 	dh_testdir
 
-
 	# Add here commands to compile the package.
 	$(PERL) Makefile.PL INSTALLDIRS=vendor
-	$(MAKE) OPTIMIZE="-O2 -g -Wall"
+	$(MAKE) OPTIMIZE="-O2 -g -Wall" test
 
 	touch build-stamp
 
@@ -47,8 +46,8 @@ install:
 	dh_installdirs
 
 	# Add here commands to install the package into debian/tmp.
-	#$(MAKE) install DESTDIR=`pwd`/debian/tmp
-	$(MAKE) install PREFIX=$(TMP)/usr
+	#$(MAKE) install =`pwd`/debian/tmp
+	$(MAKE) install PREFIX=$(TMP)/usr DESTDIR=
 
 
 # Build architecture-independent files here.
@@ -68,7 +67,7 @@ binary-arch: build install
 	dh_installcron
 	dh_installman
 #	dh_undocumented
-#       dh_installchangelogs Changes
+#	dh_installchangelogs Changes
 	dh_link
 	dh_strip
 	dh_compress

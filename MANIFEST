@@ -1,12 +1,26 @@
 Changes
 Makefile.PL
 MANIFEST
-Tangram.pm
+lib/Class/Tangram.pm
+lib/Class/Tangram/Generator.pm
 README
 t/01-tangram.t
 t/02-transient.t
+t/03-generator.t
+t/04-containers.t
+t/Containers.pm
 debian/control
 debian/rules
 debian/changelog
 debian/README.Debian
 debian/copyright
+lib/Class/Tangram/Generator/Stub.pm
+lib/Class/Tangram/Containers.pod
+t/05-generator-2.t
+t/06-auto-indexing.t
+t/07-use.t
+t/Credit.pm
+t/EcologicalRisk.pm
+t/springfield.pl
+META.yml                                 Module meta-data (added by MakeMaker)
+t/08-pure-oo-accessors.t

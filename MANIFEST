@@ -9,11 +9,6 @@ t/02-transient.t
 t/03-generator.t
 t/04-containers.t
 t/Containers.pm
-debian/control
-debian/rules
-debian/changelog
-debian/README.Debian
-debian/copyright
 lib/Class/Tangram/Generator/Stub.pm
 lib/Class/Tangram/Containers.pod
 t/05-generator-2.t

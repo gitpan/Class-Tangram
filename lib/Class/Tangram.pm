@@ -135,7 +135,7 @@ use Carp;
 
 use vars qw($VERSION %defaults @ISA);
 
-$VERSION = "1.54_01";
+$VERSION = "1.55";
 
 use Set::Object qw(blessed reftype refaddr ish_int is_int is_double is_key);
 
@@ -346,7 +346,7 @@ sub set {
 	my $setter = "set_".$name;
 
 	croak "attempt to set an illegal field $name in a $class"
-	    unless $self->can($setter);
+	    unless $self->can($setter) or $self->can("AUTOLOAD");
 
 	$self->$setter($value);
     }
@@ -376,7 +376,7 @@ sub get {
     while ( my $field = shift ) {
 	my $getter = "get_".$field;
 	croak "attempt to read an illegal field $field in a $class"
-	    unless $self->can($getter);
+	    unless $self->can($getter) or $self->can("AUTOLOAD");
 
 	if ( $multiget ) {
 	    push @return, scalar($self->$getter());
@@ -1134,7 +1134,8 @@ sub _insert_X_set {
     my $X = shift;
     my $setter = "set_$X";
     my $getter = "get_$X";
-    return $self->$setter(scalar($self->$getter), @_);
+    my @new = (scalar($self->$getter), @_);
+    return $self->$setter(@new);
 }
 sub _insert_X_array {
     my $self = shift;

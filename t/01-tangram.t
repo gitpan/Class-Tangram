@@ -146,6 +146,11 @@ $schema = {
 			}
 		       }
 		      },
+		      idbif =>
+		      {
+		       i_say_poof => # there goes another one
+		       undef,
+		      },
 		     }
 	  };
 
@@ -300,6 +305,7 @@ eval {
     $test_obj->set_enum_G("erD");
     $test_obj->set_set_t("bucket,ambiguity");
     $test_obj->set_set_G("wot,dat , I, as,erd");
+    $test_obj->set_i_say_poof("der goz an udda un innit");
 };
 is ($@, "", "Set set/enum to legal value");
 

@@ -124,8 +124,9 @@ attributes defined in the schema.  These accessor functions are then
 available as C<$object-E<gt>function> on created objects.  By virtue
 of inheritance, various other methods are available.
 
-From Class::Tangram 1.12 onwards, no use of perl's C<AUTOLOAD>
-functionality is used.
+From Class::Tangram 1.12 onwards, perl's C<AUTOLOAD> feature is not
+used to implement accessors; closures are compiled when the class is
+first used.
 
 =cut
 
@@ -134,33 +135,37 @@ use Carp;
 
 use vars qw($VERSION %defaults @ISA);
 
-$VERSION = "1.54";
+$VERSION = "1.54_01";
 
 use Set::Object qw(blessed reftype refaddr ish_int is_int is_double is_key);
 
-# $types{$class}->{$attribute} is the tangram type of each attribute
-my (%types);
+#---------------------------------------------------------------------
+#  run-time globals
+
+# $types{$class}->{$attribute} is the run-time discovered tangram type
+# of each attribute
+our (%types);
 
 # $attribute_options{$class}->{$attribute} is the hash passed to tangram
-# for the given attribute
-my (%attribute_options);
+# for the given attribute (ie T2::Class.attribute(foo).options)
+our (%attribute_options);
 
 # $check{$class}->{$attribute}->($value) is a function that will die
 # if $value is not alright, see check_X functions
-my (%check);
+our (%check);
 
 # Destructors for each attribute.  They are called as
 # $cleaners{$class}->{$attribute}->($self, $attribute);
-my (%cleaners);
+our (%cleaners);
 
 # init_default values for each attribute.  These could be hash refs,
 # array refs, code refs, or simple scalars.  They will be stored as
 # $init_defaults{$class}->{$attribute}
-my (%init_defaults);
+our (%init_defaults);
 
 # $required_attributes{$class}->{$attribute} records which attributes
 # are required... used only by new() at present.
-my (%required_attributes);
+our (%required_attributes);
 
 # companion association registry.
 #
@@ -171,10 +176,10 @@ my (%required_attributes);
 #   $object->"${rem_attribute}_remove"($self)
 # The sub is called as $coderef->($attribute, "insert", @objs);
 #                   or $coderef->($attribute, "remove", @objs);
-my (%companions);
+our (%companions);
 
 # if a class is abstract, complain if one is constructed.
-my (%abstract);
+our (%abstract);
 
 # Set when it is detected that Tangram is not installed
 my $no_tangram;
@@ -212,7 +217,7 @@ sub new
     # auto-load schema as necessary
     exists $types{$class} or import_schema($class);
 
-    croak "Attempt to instantiate an abstract type"
+    croak "Attempt to instantiate an abstract type $class"
 	if ($abstract{$class});
 
     if (ref $invocant)
@@ -302,7 +307,7 @@ sub _copy {
     for my $field ( sort keys %$types ) {
 	next if exists $passed{$field};
 	my $func = "get_$field";
-	push @rv, ($field => scalar($self->$func($field)));
+	push @rv, ($field => scalar($self->$func()));
     }
     return @rv, %passed;
 }
@@ -1002,7 +1007,8 @@ present in the container.
 sub _includes_X_set {
     my $self = shift;
     my $X = shift;
-    my $a = $self->{$X} || Set::Object->new();
+    my $getter = "get_$X";
+    my $a = $self->$getter || Set::Object->new();
 
     my $all_there = 1;
     my $item;
@@ -1022,11 +1028,13 @@ sub _includes_X_set {
 sub _includes_X_ref {
     my $self = shift;
     my $X = shift;
+    my $getter = "get_$X";
 
     my $all_there = 1;
     while (@_) {
 	if (blessed(my $item = shift)) {
-	    $all_there = 0 unless (refaddr($self->{$X}) == refaddr($item));
+	    $all_there = 0
+		unless (refaddr($self->$getter) == refaddr($item));
 	} elsif (defined(my $x = ish_int($item))) {
 	    $all_there = 0 if $x;
 	}
@@ -1038,7 +1046,8 @@ sub _includes_X_ref {
 sub _includes_X_array {
     my $self = shift;
     my $X = shift;
-    my $a = $self->{$X} || [];
+    my $getter = "get_$X";
+    my $a = $self->$getter || [];
 
     my $all_there = 1;
     my $members;
@@ -1062,7 +1071,8 @@ sub _includes_X_array {
 sub _includes_X_hash {
     my $self = shift;
     my $X = shift;
-    my $a = $self->{$X} || {};
+    my $getter = "get_$X";
+    my $a = $self->$getter || {};
 
     my $all_there = 1;
     my $members;
@@ -1873,7 +1883,7 @@ sub destroy_set {
     my $self = shift;
     my $attr = shift;
 
-    return if (ref $self ne "HASH");
+    #return if (reftype $self ne "HASH");
     my $t = tied $self->{$attr};
     return if (defined $t and $t =~ m,Tangram::CollOnDemand,);
     if (ref $self->{$attr} eq "Set::Object") {
@@ -1905,7 +1915,7 @@ destroys a reference.
 
 sub destroy_ref {
     my $self = shift;
-    delete $self->{shift};
+    delete $self->{(shift)};
 }
 
 =back
@@ -2256,7 +2266,13 @@ tested and may produce arbitrary results.  Patches welcome.
 			      load         => "Tangram/YAML.pm",
 			    },
 	     backref     => { check_func   => \&check_nothing,
-			    }
+			    },
+	     storable    => { check_func   => \&check_nothing,
+			      load         => "Tangram/Storable.pm",
+			    },
+	     idbif       => { check_func   => \&check_nothing,
+			      load         => "Tangram/IDBIF.pm",
+			    },
 	    );
 
 sub import_schema {    # Damn this function is long
@@ -2362,7 +2378,7 @@ sub import_schema {    # Damn this function is long
                     # comes in like $class::$meth, so extract our meth
                     $accessor_name =~ s/(.*\:\:)+(\w+)$/$2/;
                     *{$accessor} = $coderef
-                       unless $target_pkg->can($accessor_name);
+                       #unless $target_pkg->can($accessor_name);
                 }
 	    }
 	}
@@ -2551,6 +2567,8 @@ sub _mk_accessor {
                       return $self->$real_method($attribute, @_);
                   }
               }
+
+	    # XXX - use `Want' to return lvalue subs here
             $accessors{$target_pkg."::$attribute"} = sub {
                 my $self = shift;
                 if ( @_ && looks_like_KVKV(@_) ) {
@@ -2568,6 +2586,7 @@ sub _mk_accessor {
 
         } else {
 
+	    # XXX - use `Want' to return lvalue subs here
             $accessors{$target_pkg."::$attribute"} = sub {
                 my $self = shift;
                 if ( @_ ) {

@@ -64,7 +64,11 @@ sub new {
 	    my $ref = "${class}::new";
 	    *{ $ref } = sub {
 		shift;
-		(DEBUG) && debug_out("tripped $class->new()");
+		(DEBUG) && do {
+		    my ($pkg,$file,$line)=caller();
+		    debug_out("tripped $class->new() ($pkg"
+			      ." [$file:$line])");
+		};
 		undef *{ $class };   # avoid warnings
 		$self->load_class($class);
 		unless (blessed $_ and $_->isa(__PACKAGE__)) {
@@ -152,12 +156,18 @@ sub load_class {
 	    }
 	} else {
 	    (my $filename = $class) =~ s{::}{/}g;
-	    (DEBUG>1) && debug_out("loading class via `use $class'");
-	    eval "use $class";
-	    #warn "Got a warning: $@" if $@;
-	    croak __PACKAGE__.": auto-include $class failed; $@"
-		if ($@ && $@ !~ /^Can't locate \Q$filename.pm\E/);
-	    (DEBUG>1 && $@) && debug_out("no module for $class");
+	    $filename .= ".pm";
+	    if ( exists $INC{$filename} ) {
+		(DEBUG) && debug_out("not loading $filename - already"
+				     ." loaded");
+	    } else {
+		(DEBUG>1) && debug_out("loading class via `use $class'");
+		eval "use $class";
+		#warn "Got a warning: $@" if $@;
+		croak __PACKAGE__.": auto-include $class failed; $@"
+		    if ($@ && $@ !~ /^Can't locate \Q$filename.pm\E/);
+		(DEBUG>1 && $@) && debug_out("no module for $class");
+	    }
 	}
 
 	$self->post_load($class);

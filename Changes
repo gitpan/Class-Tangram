@@ -1,5 +1,14 @@
 Revision history for Perl extension Class::Tangram
 
+2004-02-23
+   o Release 1.54.2
+   o Added support for Storable, idbif, etc column types.  Mutter to
+     self disadvantages of hardcoding Tangram Type list in module.
+
+2004-01-08
+   o Release 1.54.1
+   o Fixed dire copy constructor bug.
+
 2004-01-01
    o Release 1.54
    o Many fixes for the intermediate classes change below

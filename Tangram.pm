@@ -5,7 +5,7 @@ package Class::Tangram;
 # same terms as Perl itself.
 
 # Some modifications
-# $Id: Tangram.pm,v 1.5 2001/10/10 17:41:00 sv Exp $
+# $Id: Tangram.pm,v 1.6 2001/11/21 14:14:06 sv Exp $
 # Copyright Å© 2001 Micro Sharp Technologies, Inc., Vancouver, WA, USA
 # Author: Karl M. Hegbloom <karlheg@microsharp.com>
 # Perl Artistic Licence.
@@ -109,10 +109,13 @@ Class::Tangram:
 
    Set::Object => 1.02
    Pod::Constants => 0.11
+   Test::Simple => 0.18
+
+Test::Simple is only required to run the test suite.
 
 =head2 MODULE RELEASE
 
-This is Class::Tangram version 1.05.
+This is Class::Tangram version 1.06.
 
 =cut
 
@@ -128,6 +131,10 @@ local $AUTOLOAD;
 
 # $types{$class}->{$attribute} is the tangram type of each attribute
 my (%types);
+
+# $attribute_options{$class}->{$attribute} is the hash passed to tangram
+# for the given attribute
+my (%attribute_options);
 
 # $check{$class}->{$attribute}->($value) is a function that will die
 # if $value is not alright, see check_X functions
@@ -197,7 +204,7 @@ sub new ($@)
 	    if (ref $default eq "CODE") {
 		# sub { }, attribute gets return value
 		$self->{$attribute}
-		    = $init_defaults{$class}->{$attribute}->();
+		    = $init_defaults{$class}->{$attribute}->($self);
 
 	    } elsif (ref $default eq "HASH") {
 		# hash ref, copy hash
@@ -232,7 +239,7 @@ sub set($@) {
     # yes, this is a lot to do.  yes, it's slow.  But I'm fairly
     # certain that this could be handled efficiently if it were to be
     # moved inside the Perl interpreter or an XS module
-    $self->isa("Class::Tangram") or croak "type mismatch";
+    UNIVERSAL::isa($self, "Class::Tangram") or croak "type mismatch";
     my $class = ref $self;
     exists $check{$class} or import_schema($class);
 
@@ -264,7 +271,7 @@ container).
 sub get($$) {
     my $self = shift;
     my $field = shift;
-    $self->isa("Class::Tangram") or croak "type mismatch";
+    UNIVERSAL::isa($self, "Class::Tangram") or croak "type mismatch";
 
     my $class = ref $self;
     exists $check{$class} or import_schema($class);
@@ -317,7 +324,7 @@ This only works if the attribute in question is a Set::Object.
 
 sub AUTOLOAD {
     my $self = shift;
-    $self->isa("Class::Tangram") or croak "type mismatch";
+    UNIVERSAL::isa($self, "Class::Tangram") or croak "type mismatch";
 
     my $class = ref $self;
     exists $check{$class} or import_schema($class);
@@ -369,7 +376,7 @@ the Class::Tangram method, like so:
 =cut
 
 sub getset($$;$) {
-    $_[0]->isa("Class::Tangram") or croak "type mismatch";
+    UNIVERSAL::isa($_[0], "Class::Tangram") or croak "type mismatch";
 
     if ($#_ > 1) {
 	goto &set;
@@ -475,7 +482,7 @@ sub check_array {
 
 sub check_set {
     croak "set type not passed a Set::Object"
-	unless (ref ${$_[0]} and ${$_[0]}->isa("Set::Object"));
+	unless (UNIVERSAL::isa(${$_[0]}, "Set::Object"));
 }
 
 =pod
@@ -821,6 +828,7 @@ sub import_schema($) {
 	my $cleaners_class = { };
 	my $init_defaults_class = { };
 	my $types_class = { };
+	my $defs_class = { };
 
 	# if this is an abstract type, do not allow it to be
 	# instantiated
@@ -850,6 +858,8 @@ sub import_schema($) {
 		    while (($k, $v) = each %{ $check{$super} } );
 		$cleaners_class->{$k} = $v
 		    while (($k, $v) = each %{ $cleaners{$super} } );
+		$defs_class->{$k} = $v
+		    while (($k, $v) = each %{ $attribute_options{$super} } );
 		$init_defaults_class->{$k} = $v
 		    while (($k, $v) = each %{ $init_defaults{$super} } );
 	    }
@@ -867,6 +877,8 @@ sub import_schema($) {
 		$types_class->{$attribute} = $type;
 
 		# ----- check_X functions ----
+		$defs_class->{$attribute} = $option || {};
+
 		if (ref $option eq "HASH" and $option->{check_func}) {
 		    # user-supplied check_X function
 		    $check_class->{$attribute} =
@@ -921,6 +933,7 @@ sub import_schema($) {
 	$check{$class} = $check_class;
 	$cleaners{$class} = $cleaners_class;
 	$init_defaults{$class} = $init_defaults_class;
+	$attribute_options{$class} = $defs_class;
     };
 
     $@ && die "$@ while trying to import schema for $class";
@@ -1020,6 +1033,118 @@ sub clear_refs($) {
     $self->{_NOREFS} = 1;
 }
 
+=back
+
+=head1 Run-time type information
+
+It is possible to access the data structures that Class::Tangram uses
+internally to verify attributes, create objects and so on.
+
+Class::Tangram keeps six internal hashes:
+
+=over 4
+
+=item %types
+
+$types{$class}->{$attribute} is the tangram type of each attribute, ie
+"ref", "iset", etc.  See L<Tangram::Type>.
+
+=item %attribute_options
+
+$attribute_options{$class}->{$attribute} is the options hash for a
+given attribute.
+
+=item %check
+
+$check{$class}->{$attribute} is a function that will be passed a
+reference to the value to be checked and either throw an exception
+(die) or return true.
+
+=item %cleaners
+
+$attribute_options{$class}->{$attribute} is a reference to a
+destructor function for that attribute.  It is called as an object
+method on the object being destroyed, and should ensure that any
+circular references that this object is involved in get cleared.
+
+=item %abstract
+
+$abstract->{$class} is set if the class is abstract
+
+=item %init_defaults
+
+$init_defaults{$class}->{$attribute} represents what an attribute is
+set to automatically if it is not specified when an object is
+created. If this is a scalar value, the attribute is set to the
+value. If it is a function, then that function is called (as a method)
+and should return the value to be placed into that attribute.  If it
+is a hash ref or an array ref, then that structure is COPIED in to the
+new object.  If you don't want that, you can do something like this:
+
+   [...]
+    flat_hash => {
+        attribute => {
+            init_default => sub { { key => "value" } },
+        },
+    },
+   [...]
+
+Now, every new object will share the same hash for that attribute.
+
+=back
+
+There are currently four functions that allow you to access parts of
+this information.
+
+=over 4
+
+=item attribute_options($class)
+
+Returns a hash ref to a data structure from attribute names to the
+option hash for that attribute.
+
+=cut
+
+sub attribute_options($) {
+    my $class = shift;
+    return $attribute_options{$class};
+}
+
+=item attribute_types($class)
+
+Returns a hash ref from attribute names to the tangram type for that
+attribute.
+
+=cut
+
+sub attribute_types($) {
+    my $class = shift;
+    return $types{$class};
+}
+
+=item known_classes
+
+This function returns a list of all the classes that have had their
+object schema imported by Class::Tangram.
+
+=cut
+
+sub known_classes {
+    return keys %types;
+}
+
+=item is_abstract($class)
+
+This function returns true if the supplied class is abstract.
+
+=cut
+
+sub is_abstract {
+    my $class = shift;
+    $class eq "Class::Tangram" && ($class = shift);
+
+    exists $cleaners{$class} or import_schema($class);
+}
 
 =back
 

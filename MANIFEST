@@ -4,3 +4,8 @@ MANIFEST
 Tangram.pm
 README
 t/01-tangram.t
+debian/control
+debian/rules
+debian/changelog
+debian/README.Debian
+debian/copyright

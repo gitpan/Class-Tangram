@@ -1,0 +1,9 @@
+lib-prereq-pm-perl (1.06-1) unstable; urgency=low
+
+  * Initial Release as debian package
+
+ -- Sam Vilain <sam@vilain.net>  Mon, 10 Dec 2001 16:31:19 +0000
+
+Local variables:
+mode: debian-changelog
+End:

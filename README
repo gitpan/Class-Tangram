@@ -1,5 +1,5 @@
-Class::Tangram version 1.04
-============================
+Class::Tangram version 1.06
+===========================
 
 Class::Tangram serves to provide a base class for deriving Tangram
 objects from.
@@ -25,8 +25,10 @@ To install this module type the following:
 
 DEPENDENCIES
 
-This module requires Set::Object 1.02 or higher.  You may also want to
-install Tangram 2.03 or later.
+This module requires Set::Object 1.02 or higher, and Pod::Constants
+0.12.  You may also want to install Tangram 2.03 or later.
+
+Test::Simple 0.18 is also required to run the test suite.
 
 COPYRIGHT AND LICENCE
 

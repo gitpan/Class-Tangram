@@ -1,7 +1,7 @@
-Tangram::Object version 1.?
-===========================
+Class::Tangram version 1.04
+============================
 
-Tangram::Object serves to provide a base class for deriving Tangram
+Class::Tangram serves to provide a base class for deriving Tangram
 objects from.
 
 In some ways, it is similar to Class::Contract, but it allows

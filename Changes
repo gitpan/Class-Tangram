@@ -1,5 +1,16 @@
 Revision history for Perl extension Class::Tangram
 
+2001-10-14
+
+   o Release 1.04
+   o Added some Set::Object AUTOLOAD functions
+   o More documentation fixes
+   o Now creates empty Set::Object containers for set attributes so
+     that Tangram doesn't get upset when you store a new object, but
+     didn't initialise one of its sets.
+   o Get of a Set::Object attribute returns its members when called in
+     list context
+
 2001-10-10
 
    o Release 1.03

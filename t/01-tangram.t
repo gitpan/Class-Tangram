@@ -4,7 +4,7 @@
 #
 
 use strict;
-use Test::More tests => 25;
+use Test::More tests => 34;
 
 #---------------------------------------------------------------------
 # Test 1:   Check Class::Tangram loads
@@ -63,20 +63,20 @@ $schema = {
 	  };
 
 package Credit;
-use Carp;
-use vars qw(@ISA $schema);
-@ISA = qw(Class::Tangram);
+use vars qw($schema);
+use base qw(Class::Tangram);
 
 my $counter;
 
 $schema = {
 	   fields => {
 		      # nothing, this is an association class with no data.
+		      # these fields are used for later tests
 		      string =>
 		      {
 		       foo => {
 			       check_func => sub {
-				   croak if (${$_[0]} ne "bar");
+				   die if (${$_[0]} ne "bar");
 				   },
 			       init_default => "baz",
 			       },
@@ -85,6 +85,15 @@ $schema = {
 				   ++$counter;
 				   }
 			       }
+		      },
+		      int =>
+		      {
+		       cheese => {
+				  check_func => sub {
+				      die "too big" if (${$_[0]} > 15);
+				  },
+				  init_default => 15,
+				 },
 		      },
 		     },
 	  };
@@ -237,9 +246,6 @@ isnt ($@, "", "Set ref to illegal value");
 # hash
 
 #---------------------------------------------------------------------
-# check clear_refs
-
-#---------------------------------------------------------------------
 # check init_default
 is($credits[0]->foo, "baz", "init_default scalar");
 is($credits[0]->bar, 1, "init_default sub");
@@ -252,11 +258,16 @@ is($credits[3]->bar, 4, "init_default sub");
 eval {
     $credits[0]->set_foo("Anything");
 };
-isnt($@, "", "check_func illegal");
+isnt($@, "", "check_func string illegal");
 eval {
     $credits[0]->set_foo("bar");
 };
-is($@, "", "check_func legal");
+is($@, "", "check_func string legal");
+
+eval { $credits[0]->set_cheese(16); };
+isnt($@, "", "check_func int illegal");
+eval { $credits[0]->set_cheese(-1); };
+is($@, "", "check_func int legal");
 
 #---------------------------------------------------------------------
 #  check clear_refs
@@ -273,3 +284,16 @@ eval { $locations[0]->set("cheese", "high"); };
 isnt($@, "", "Set invalid field");
 
 #---------------------------------------------------------------------
+# Set::Object functions
+my @foo = $actors[0]->credits;
+is ($#foo, 3, "list context get of set");
+my $foo = $actors[0]->credits;
+ok($foo->isa("Set::Object"), "scalar context get of set");
+ok($actors[0]->credits_includes($foo[2]), "AUTOLOAD _includes");
+$actors[0]->credits_remove($foo[2]);
+ok(!$actors[0]->credits_includes($foo[2]), "AUTOLOAD _remove");
+$actors[0]->credits_clear;
+ok(!$actors[0]->credits_includes($foo[1]), "AUTOLOAD _clear");
+$actors[0]->credits_insert($foo[1]);
+ok($actors[0]->credits_includes($foo[1]), "AUTOLOAD _insert");
+is($actors[0]->credits_size, 1, "AUTOLOAD _size");

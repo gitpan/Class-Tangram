@@ -6,69 +6,84 @@ package Class::Tangram;
 
 # Some modifications
 # $Id: Tangram.pm,v 1.5 2001/10/10 17:41:00 sv Exp $
-# Copyright © 2001 Micro Sharp Technologies, Inc., Vancouver, WA, USA
+# Copyright Å© 2001 Micro Sharp Technologies, Inc., Vancouver, WA, USA
 # Author: Karl M. Hegbloom <karlheg@microsharp.com>
 # Perl Artistic Licence.
 
 =head1 NAME
 
-Class::Tangram - magic constructors and methods for objects
+Class::Tangram - create constructors, accessor and update methods for
+objects from a Tangram-compatible object specification.
 
 =head1 SYNOPSIS
 
  package Orange;
- 
- use vars qw(@ISA $schema);
- use Carp;
- @ISA = qw(Class::Tangram);
- 
- # define the schema (ie, allowed attributes) of this object
- # See the Tangram::Schema man page for more information
+
+ use base qw(Class::Tangram);
+ use vars qw($schema);
+ use Tangram::Ref;
+
+ # define the schema (ie, allowed attributes) of this object.  See the
+ # Tangram::Schema man page for more information on the syntax here.
  $schema = {
      table => "oranges",
- 
+
      fields => {
-	 int => {
-	     juiciness => undef,
+         int => {
+             juiciness => undef,
              segments => {
+                 # here is a new one - this code reference is called
+                 # when this attribute is set; it should die() on
+                 # error, as it is wrapped in an eval { } block
                  check_func => sub {
-                     croak "too many segments"
-                         if ($ {$_[0]} > SEGMENT_MAX);
+                     die "too many segments"
+                         if ($ {$_[0]} > 30);
                  },
-                 init_default => 7;
+                 # the default for this attribute.
+                 init_default => 7,
              },
-	 },
+         },
          ref => {
              grower => undef,
          },
      },
  };
- 
+ Class::Tangram::import_schema("Orange");
+
  package Project;
- 
- my $dbschema = Tangram::Relational->schema
+ # here's where we build the individual object schemas into a
+ # Tangram::Schema object, which the Tangram::Storage class uses to
+ # know which tables and columns to find objects.
+ use Tangram::Schema;
+
+ my $dbschema = Tangram::Schema->new
      ({ classes => [ 'Orange' => $Orange::schema ]});
- 
+
  sub schema { $dbschema };
- 
- package Main;
- 
- my $storage = Tangram::Relational->connect(Project->schema, $dsn, $u, $p)
- 
+
+ package main;
+
+ # See Tangram::Relational for instructions on using "deploy" to
+ # create the database this connects to.  You only have to do this if
+ # you want to write the objects to a database.
+ use Tangram::Relational;
+ my ($dsn, $u, $p);
+ my $storage = Tangram::Relational->connect(Project->schema,
+                                            $dsn, $u, $p);
+
  # OK
  my $orange = Orange->new(juiciness => 8);
- 
  my $juiciness = $orange->juiciness;   # returns 8
- 
+
  # a "ref" must be set to a blessed object
- $grower = bless { name => "Joe" }, "Farmer";
- $orange->set_grower ($grower)
- 
+ my $grower = bless { name => "Joe" }, "Farmer";
+ $orange->set_grower ($grower);
+
  # these are all illegal
- $orange->set_juiciness ("Yum");
- $orange->set_segments (SEGMENT_MAX + 1);
- $orange->set_grower ("The Fabulous Furry Freak Brothers");
- 
+ eval { $orange->set_juiciness ("Yum"); }; print $@;
+ eval { $orange->set_segments (31); }; print $@;
+ eval { $orange->set_grower ("Mr. Nice"); }; print $@;
+
  # if you prefer
  $orange->get( "juiciness" );
  $orange->set( juiciness => 123 );
@@ -80,20 +95,20 @@ Tangram objects, that gives you free constructors, access methods,
 update methods, and a destructor that should help in breaking circular
 references for you. Type checking is achieved by parsing the schema
 for the object, which is contained within the object class in an
-exported variable C<$schema>. After writing this I found that it was
-useful for writing general classes.
+exported variable C<$schema>.
+
+After writing this I found that it was useful for merely adding type
+checking and validation to arbitrary objects.  There are several
+modules on CPAN to do that already, but many don't have finely grained
+type checking, and none of them integrated with Tangram.
 
 =cut
 
 use strict;
 use Carp qw(croak cluck);
 
-# Did use Class::ISA for bases, however the information is also
-# available in the Tangram structures.
-#use Class::ISA ();
-
 use vars qw($AUTOLOAD $VERSION);
-$VERSION = "1.03";
+$VERSION = "1.04";
 
 local $AUTOLOAD;
 
@@ -188,6 +203,154 @@ sub new ($@)
 	}
     }
     return $self;
+}
+
+=item $instance->set(attribute => $value, ...)
+
+Sets the attributes of the given instance to the given values.  croaks
+if there is a problem with the values.
+
+=cut
+
+sub set($@) {
+    my ($self, @values) = (@_);
+
+    # yes, this is a lot to do.  yes, it's slow.  But I'm fairly
+    # certain that this could be handled efficiently if it were to be
+    # moved inside the Perl interpreter or an XS module
+    $self->isa("Class::Tangram") or croak "type mismatch";
+    my $class = ref $self;
+    exists $check{$class} or import_schema($class);
+
+    while (my ($name, $value) = splice @values, 0, 2) {
+	croak "attempt to set an illegal field $name in a $class"
+	    if (!defined $check{$class}->{$name});
+
+	#local $@;
+
+	# these handlers die on failure
+	eval { $check{$class}->{$name}->(\$value) };
+	$@ && croak ("value failed type check - ${class}->{$name}, "
+		     ."\"$value\" ($@)");
+
+	#should be ok now
+	$self->{$name} = $value;
+    }
+}
+
+=item $instance->get($attribute)
+
+Gets the value of $attribute.  If the attribute in question is a set,
+and this method is called in list context, then it returns the MEMBERS
+of the set (if called in scalar context, it returns the Set::Object
+container).
+
+=cut
+
+sub get($$) {
+    my ($self, $field) = (@_);
+    $self->isa("Class::Tangram") or croak "type mismatch";
+    my $class = ref $self;
+    exists $check{$class} or import_schema($class);
+    croak "attempt to read an illegal field $field in a $class"
+	if (!defined $check{$class}->{$field});
+
+    if ($types{$class}->{$field} =~ m/^i?set$/o) {
+	if (!defined $self->{$field}) {
+	    $self->{$field} = Set::Object->new();
+	}
+	if (wantarray) {
+	    return $self->{$field}->members;
+	}
+    }
+
+    return $self->{$field};
+}
+
+=item $instance->attribute($value)
+
+If $value is not given, then
+this is equivalent to $instance->get("attribute")
+
+If $value is given, then this is equivalent to
+$instance->set("attribute", $value).  This usage issues a warning; you
+should change your code to use the set_attribute syntax for better
+readability.
+
+=item $instance->get_attribute
+
+=item $instance->set_attribute($value)
+
+Equivalent to $instance->get("attribute") and $instance->set(attribute
+=> $value), respectively.
+
+=item $instance->attribute_includes(@objects)
+
+=item $instance->attribute_insert(@objects)
+
+=item $instance->attribute_size
+
+=item $instance->attribute_clear
+
+=item $instance->attribute_remove(@objects)
+
+Equivalent to calling $instance->attribute->includes(@objects), etc.
+This only works if the attribute in question is a Set::Object.
+
+=cut
+
+sub AUTOLOAD ($;$) {
+    my ($self, $value) = (@_);
+    $self->isa("Class::Tangram") or croak "type mismatch";
+
+    my $class = ref $self;
+    $AUTOLOAD =~ s/.*://;
+    if ($AUTOLOAD =~ m/^(set_|get_)?([^:]+)$/
+	and defined $types{$class}->{$2}) {
+
+	# perl sucks at this type of test
+	if ((defined $1 and $1 eq "set_")
+	    or (!defined $1 and defined $value)) {
+
+	    if ($^W && !defined $1) {
+		cluck("The OO police say change your call to "
+		      ."\$obj->set_$2");
+	    }
+	    return set($self, $2, $value);
+	} else {
+	    return get($self, $2);
+	}
+    } elsif (my ($attr, $method) =
+	     ($AUTOLOAD =~ m/^(.*)_(includes|insert|
+			     size|clear|remove)$/x)
+	     and $types{$class}->{$1} =~ m/^i?set$/) {
+	return get($self, $attr)->$method(@_[1..$#_]);
+    } else {
+	croak("unknown method/attribute ${class}->$AUTOLOAD called");
+    }
+}
+
+=item $instance->getset($attribute, $value)
+
+If you're replacing the AUTOLOAD function in your Class::Tangram
+derived class, but would still like to use the behaviour for one or
+two fields, then you can define functions for them to fall through to
+the Class::Tangram method, like so:
+
+ sub attribute { $_[0]->SUPER::getset("attribute", $_[1]) }
+
+=cut
+
+sub getset($$;$) {
+    my ($self, $attr, $value) = (@_);
+    $self->isa("Class::Tangram") or croak "type mismatch";
+
+    if (defined $value) {
+	return set($self, $attr, $value);
+    } else {
+	return get($self, $attr);
+    }
+
 }
 
 =item check_X (\$value)
@@ -724,6 +887,11 @@ sub import_schema($) {
 		}
 
 		# ----- init_default functions
+		# create empty Set::Object containers as necessary
+		if ($type =~ m/^i?set$/) {
+		    $init_defaults_class->{$attribute} =
+			sub { Set::Object->new() };
+		}
 		if (ref $option eq "HASH" and $option->{init_default}) {
 		    $init_defaults_class->{$attribute} =
 			$option->{init_default};
@@ -739,59 +907,6 @@ sub import_schema($) {
     $@ && die "$@ while trying to import schema for $class";
 }
 
-=item $instance->set(attribute => value, ...)
-
-Sets the attributes of the given instance to the given values
-
-=cut
-
-sub set($@) {
-    my ($self, @values) = (@_);
-
-    # yes, this is a lot to do.  yes, it's slow.  But I'm fairly
-    # certain that this could be handled efficiently if it were to be
-    # moved inside the Perl interpreter or an XS module
-    $self->isa("Class::Tangram") or croak "type mismatch";
-    my $class = ref $self;
-    exists $check{$class} or import_schema($class);
-
-    while (my ($name, $value) = splice @values, 0, 2) {
-	croak "attempt to set an illegal field $name in a $class"
-	    if (!defined $check{$class}->{$name});
-
-	#local $@;
-
-	# these handlers die on failure
-	eval { $check{$class}->{$name}->(\$value) };
-	$@ && croak ("value failed type check - ${class}->{$name}, "
-		     ."\"$value\" ($@)");
-
-	#should be ok now
-	$self->{$name} = $value;
-    }
-}
-
-=item $instance->get($attribute)
-
-Gets the value of $attribute
-
-=cut
-
-sub get($$) {
-    my ($self, $field) = (@_);
-    $self->isa("Class::Tangram") or croak "type mismatch";
-    my $class = ref $self;
-    exists $check{$class} or import_schema($class);
-    croak "attempt to read an illegal field $field in a $class"
-	if (!defined $check{$class}->{$field});
-
-    if (!defined $self->{$field} and
-	$types{$class}->{$field} =~ m/^i?set$/o) {
-	$self->{$field} = Set::Object->new();
-    }
-
-    return $self->{$field};
-}
 
 =item $instance->quickdump
 
@@ -822,67 +937,6 @@ sub quickdump($) {
     return $r;
 }
 
-=item $instance->attribute($value)
-
-If $value is given, then this is equivalent to
-$instance->set("attribute", $value).  If $value is not given, then
-this is equivalent to $instance->get("attribute")
-
-After a little thought I decided that perhaps it would be better to
-make the semantics $instance->set_attribute($value) for the case of
-set, and optionally $instance->get_attribute().  This makes the code
-read better, because your sentence of code gains a verb.
-
-=cut
-
-sub AUTOLOAD ($;$) {
-    my ($self, $value) = (@_);
-    $self->isa("Class::Tangram") or croak "type mismatch";
-
-    my $name = $AUTOLOAD;
-    $name =~ s/.*://;
-
-    # The OO police say, "ensure your action methods are verbs"!
-    my $no_warn;
-    if ($name =~ s/^(set|get)_//) {
-	$no_warn = 1;
-    }
-
-    # if given extra parameters, set the value, otherwise return it
-    if (defined $value) {
-	unless (defined $no_warn) {
-	    cluck("The OO police say change your call to "
-		  ."\$obj->set_$name");
-	}
-	return set($self, $name, $value);
-    } else {
-	# don't moan about no get_ prefix, I quite like it.
-	return get($self, $name);
-    }
-}
-
-=item $instance->getset($attribute, $value)
-
-If you're replacing the AUTOLOAD function in your Class::Tangram
-derived class, but would still like to use the behaviour for one or
-two fields, then you can define functions for them to fall through to
-the Class::Tangram method, like so:
-
- sub attribute { $_[0]->SUPER::getset("attribute", $_[1]) }
-
-=cut
-
-sub getset($$;$) {
-    my ($self, $attr, $value) = (@_);
-    $self->isa("Class::Tangram") or croak "type mismatch";
-
-    if (defined $value) {
-	return set($self, $attr, $value);
-    } else {
-	return get($self, $attr);
-    }
-
-}
 
 =item $instance->DESTROY
 
@@ -961,9 +1015,13 @@ B<A guided tour of Tangram, by Sound Object Logic.>
 
 =head1 BUGS/TODO
 
-More datetime types.  I avoided the DMDateTime type because
+More datetime types.  I originally avoided the DMDateTime type because
 Date::Manip is self-admittedly the most bloated module on CPAN, and I
-don't want to be seen encouraging it :-)
+didn't want to be seen encouraging it.  Then I found out about
+autosplit :-}.
+
+More AUTOLOAD methods, in particular for container types such as
+array, hash, etc.
 
 This documentation should be easy enough for a fool to understand.
 

@@ -131,9 +131,36 @@ use vars qw($VERSION %defaults);
 
 use Set::Object;
 
-use Pod::Constants -trim => 1,
-    'MODULE RELEASE' => sub { ($VERSION) = /(\d+\.\d+)/ },
-    'Default Type Checking' => sub { %defaults = eval; };
+$VERSION = 1.13;
+
+%defaults = (
+ int         => { check_func   => \&check_int },
+ real        => { check_func   => \&check_real },
+ string      => { parse        => \&parse_string },
+ ref         => { check_func   => \&check_obj,
+		  destroy_func => \&destroy_ref },
+ array       => { check_func   => \&check_array,
+		  destroy_func => \&destroy_array },
+ iarray      => { check_func   => \&check_array,
+		  destroy_func => \&destroy_array },
+ flat_array  => { check_func   => \&check_flat_array },
+ set         => { check_func   => \&check_set,
+		  destroy_func => \&destroy_set,
+		  init_default => sub { Set::Object->new() } },
+ iset        => { check_func   => \&check_set,
+		  destroy_func => \&destroy_set,
+		  init_default => sub { Set::Object->new() } },
+ dmdatetime  => { check_func   => \&check_dmdatetime },
+ rawdatetime => { check_func   => \&check_rawdatetime },
+ rawdate     => { check_func   => \&check_rawdate },
+ rawtime     => { check_func   => \&check_rawtime },
+ flat_hash   => { check_func   => \&check_flat_hash },
+ transient   => { check_func   => \&check_nothing },
+ hash        => { check_func   => \&check_hash,
+		  destroy_func => \&destroy_hash,
+		  get_func     => \&get_hash },
+ perl_dump   => { check_func   => \&check_nothing }
+);
 
 # $types{$class}->{$attribute} is the tangram type of each attribute
 my (%types);
@@ -471,46 +498,6 @@ C<$sub-E<gt>($object, "attribute")>.
 
 =back
 
-=head2 Default Type Checking
-
- # The following list is eval'ed from this documentation
- # when Class::Tangram loads, and used as default attribute
- # options for the specified types.  So, eg, the default
- # "init_default" for "set" types is a subroutine that
- # returns a new Set::Object container.
-
- # "parse" is special - it is passed the options hash given
- # by the user and should return (\&check_func,
- # \&destroy_func).  This is how the magical string type
- # checking is performed - see the entry for parse_string(),
- # below.
-
- int         => { check_func   => \&check_int },
- real        => { check_func   => \&check_real },
- string      => { parse        => \&parse_string },
- ref         => { check_func   => \&check_obj,
-		  destroy_func => \&destroy_ref },
- array       => { check_func   => \&check_array,
-		  destroy_func => \&destroy_array },
- iarray      => { check_func   => \&check_array,
-		  destroy_func => \&destroy_array },
- flat_array  => { check_func   => \&check_flat_array },
- set         => { check_func   => \&check_set,
-		  destroy_func => \&destroy_set,
-		  init_default => sub { Set::Object->new() } },
- iset        => { check_func   => \&check_set,
-		  destroy_func => \&destroy_set,
-		  init_default => sub { Set::Object->new() } },
- dmdatetime  => { check_func   => \&check_dmdatetime },
- rawdatetime => { check_func   => \&check_rawdatetime },
- rawdate     => { check_func   => \&check_rawdate },
- rawtime     => { check_func   => \&check_rawtime },
- flat_hash   => { check_func   => \&check_flat_hash },
- transient   => { check_func   => \&check_nothing },
- hash        => { check_func   => \&check_hash,
-		  destroy_func => \&destroy_hash,
-		  get_func     => \&get_hash },
- perl_dump   => { check_func   => \&check_nothing }
 
 =over
 
@@ -1549,7 +1536,7 @@ of the above modules, please send me an e-mail.
 
 =head2 MODULE RELEASE
 
-This is Class::Tangram version 1.12.
+This is Class::Tangram version 1.13.
 
 =head1 BUGS/TODO
 

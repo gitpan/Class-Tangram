@@ -23,7 +23,7 @@ build: build-stamp
 build-stamp:
 	dh_testdir
 
-	
+
 	# Add here commands to compile the package.
 	$(PERL) Makefile.PL INSTALLDIRS=vendor
 	$(MAKE) OPTIMIZE="-O2 -g -Wall"
@@ -68,7 +68,7 @@ binary-arch: build install
 	dh_installcron
 	dh_installman
 #	dh_undocumented
-	dh_installchangelogs Changes
+#       dh_installchangelogs Changes
 	dh_link
 	dh_strip
 	dh_compress

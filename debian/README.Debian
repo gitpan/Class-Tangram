@@ -1,2 +1,12 @@
-This is the debian package for the libclass-tangram-perl module.
-It was created by Sam Vilain <sam@vilain.net> using dh-make-perl.
+This is the Debianized version of Sam Vilain's Class::Tangram perl
+module.
+
+It has nothing to do with the Debian project, other than it is using
+their package format, and designed to integrate with Debian (designed
+for woody, but should work on Sarge, Sid, etc. assuming some other
+alpha piece of shite library on that platform doesn't break it).
+
+See http://vilain.net/pm/ for a more up-to-date copy, or add the
+following to your /etc/apt/sources.list;
+
+  deb http://vilain.net/debian woody sv

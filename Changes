@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::Tangram
 
+2003-05-19
+   o Release 1.13
+   o Removal of dependancy upon Pod::Constants
+
 2002-05-29
    o Release 1.12
    o Complete removal of AUTOLOAD.  More backwards compatibility than

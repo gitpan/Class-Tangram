@@ -1,4 +1,4 @@
-Class::Tangram version 1.12
+Class::Tangram version 1.13
 ===========================
 
 Class::Tangram serves to provide a base class for deriving Tangram
@@ -25,11 +25,17 @@ To install this module type the following:
 
 DEPENDENCIES
 
-This module requires Set::Object 1.02 or higher, and Pod::Constants
-0.12.  You may also want to install Tangram 2.03 or later.
+This module requires Set::Object 1.02 or higher.  You may also want to
+install Tangram 2.03 or later.
 
 Test::Simple 0.18 and Date::Manip 0.32 is also required to run the
 test suite.
+
+UPGRADING FROM 1.12
+
+1.13 is a minor release, to remove a mostly unnecessary dependancy on
+Pod::Constants; whilst some of what Pod::Constants achieves is a noble
+effort, it has far too much run-time overhead to be practical.
 
 UPGRADING FROM 1.11
 

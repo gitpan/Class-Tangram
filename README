@@ -1,0 +1,33 @@
+Tangram::Object version 1.?
+===========================
+
+Tangram::Object serves to provide a base class for deriving Tangram
+objects from.
+
+In some ways, it is similar to Class::Contract, but it allows
+finer-grained specification of the types of attributes.  This is
+particularly useful if you are using Tangram, but consider it an
+"alternate approach" to Class::Contract, that supports persistence
+without using Data::Dumper/Storable.
+
+INSTALLATION
+
+To install this module type the following:
+
+   perl Makefile.PL
+   make
+   make test
+   make install
+
+DEPENDENCIES
+
+This module has no strict dependencies.
+
+  blah blah blah
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2001 Sam Vilain.  All Rights Reserved.  This module is
+free software. It may be used, redistributed and/or modified under the
+terms of the Perl Artistic License
+

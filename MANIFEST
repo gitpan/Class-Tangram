@@ -1,5 +1,6 @@
 Changes
 Makefile.PL
+Makefile.cfg
 MANIFEST
 Tangram.pm
 README

@@ -340,9 +340,9 @@ sub get {
 	    unless $self->can($getter);
 
 	if ( $multiget ) {
-	    push @return, scalar($self->$getter);
+	    push @return, scalar($self->$getter());
 	} else {
-	    return $self->$getter;
+	    return $self->$getter();
 	}
     }
 

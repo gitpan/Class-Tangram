@@ -130,7 +130,7 @@ of the above modules, please send me an e-mail.
 
 =head2 MODULE RELEASE
 
-This is Class::Tangram version 1.08.
+This is Class::Tangram version 1.09.
 
 =cut
 
@@ -199,7 +199,7 @@ sub new ($@)
     croak "Attempt to instantiate an abstract type"
 	if ($abstract{$class});
 
-    if ($invocant ne $class)
+    if (ref $invocant)
     {
 	# The copy constructor; this could be better :)
 	# this has the side effect of much auto-vivification.
@@ -1263,6 +1263,8 @@ sub set_init_default {
     }
 }
 
+# a little embedded package
+
 package Tangram::Transient;
 
 BEGIN {
@@ -1270,12 +1272,19 @@ BEGIN {
     if ( $@ ) {
 	# no tangram
     } else {
-	$Tangram::Schema::TYPES{transient} =  bless {}, __PACKAGE__;
+	$Tangram::Schema::TYPES{transient} = bless {}, __PACKAGE__;
     }
 }
 
 sub coldefs { }
 
+sub get_exporter { }
+sub get_importer { }
+
+sub get_import_cols {
+#    print "Get_import_cols:" , Dumper \@_;
+    return ();
+}
 
 =head1 SEE ALSO
 

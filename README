@@ -1,4 +1,4 @@
-Class::Tangram version 1.08
+Class::Tangram version 1.09
 ===========================
 
 Class::Tangram serves to provide a base class for deriving Tangram
@@ -30,6 +30,10 @@ This module requires Set::Object 1.02 or higher, and Pod::Constants
 
 Test::Simple 0.18 and Date::Manip 0.32 is also required to run the
 test suite.
+
+UPGRADING FROM 1.08
+
+There are no source incompatibility changes since 1.08.
 
 UPGRADING FROM 1.07
 

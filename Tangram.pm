@@ -3,11 +3,6 @@ package Class::Tangram;
 # Copyright (c) 2001, 2002 Sam Vilain.  All right reserved.  This file
 # is licensed under the terms of the Perl Artistic license.
 
-# Some modifications
-# Copyright Å© 2001 Micro Sharp Technologies, Inc., Vancouver, WA, USA
-# Author: Karl M. Hegbloom <karlheg@microsharp.com>
-# Perl Artistic Licence.
-
 =head1 NAME
 
 Class::Tangram - create constructors, accessor and update methods for
@@ -15,177 +10,130 @@ objects from a Tangram-compatible object specification.
 
 =head1 SYNOPSIS
 
- # simple package - four attributes "foo", "bar" (integers),
- # "baz" and "quux" (strings)
  package MyObject;
 
  use base qw(Class::Tangram);
 
- our $schema = {
-    fields => { int => [ qw(foo bar) ],
-                string => [ qw(baz quux) ] }
-    };
+ our $fields => { int    => [ qw(foo bar) ],
+                  string => [ qw(baz quux) ] };
 
  package main;
 
  my $object = MyObject->new(foo => 2, baz => "hello");
- print $object->foo();
+
+ print $object->baz();            # prints "hello"
+
  $object->set_quux("Something");
 
- # More detailed example, displaying many of the features of
- # Class::Tangram
- package Orange;
-
- use base qw(Class::Tangram);
- use vars qw($schema);
- use Tangram::Ref;
-
- # define the schema (ie, allowed attributes) of this
- # object.  See the Tangram::Schema man page for an
- # introduction to the Tangram schema syntax.
-
- $schema = {
-     table => "oranges",
-
-     fields => {
-         int => {
-             juiciness => undef,
-             segments => {
-                 # this code reference is called when this
-                 # attribute is set, to check the value is
-                 # OK
-                 check_func => sub {
-                     die "too many segments"
-                         if (${ shift } > 30);
-                 },
-                 # the default for this attribute.
-                 init_default => 7,
-             },
-         },
-         ref => {
-             grower => undef,
-         },
-
-         # 'required' attributes - insist that these fields are set,
-         #    both with constructor and set()/set_X methods
-	 string => {
-             # true: 'type' must have non-empty value
-	     type => { required => 1 },
-	     # false: 'tag' must be defined but may be empty
-	     tag => { required => '' },
-         },
-         # fields allowed by Class::Tangram but not ever
-         # stored - no type checking without check_func
-         transient => [ qw(_tangible) ],
-     },
- };
- Class::Tangram::import_schema("Orange");
-
- package Project;
-
- # here's where we build the individual object schemas into
- # a Tangram::Schema object, which the Tangram::Storage
- # class uses to know which tables and columns to find
- # objects.
- use Tangram::Schema;
-
- my $dbschema = Tangram::Schema->new
-     ({ classes => [ 'Orange' => $Orange::schema,
-                     'MyObject' => $MyObject::schema ]});
-
- sub schema { $dbschema };
-
- package main;
-
- # See Tangram::Relational for instructions on using
- # "deploy" to create the database this connects to.  You
- # only have to do this if you want to write the objects to
- # a database.
- use Tangram::Relational;
- my ($dsn, $u, $p);
- my $storage = Tangram::Relational->connect
-                   (Project->schema, $dsn, $u, $p);
-
- # This is how you create instances
- my $orange = Orange->new(
-			  juiciness => 8,
-			  type => 'Florida',
-			  tag => '',  # required
-			 );
-
- # Store them
- $storage->insert($orange);
-
- # This is how you get values out of the objects
- my $juiciness = $orange->juiciness;
-
- # a "ref" must be set to a blessed object, any object
- my $grower = bless { name => "Joe" }, "Farmer";
- $orange->set_grower ($grower);
-
- # these are all illegal - type checking is fairly strict
- my $orange = eval { Orange->new; };         print $@;
- eval { $orange->set_juiciness ("Yum"); };   print $@;
- eval { $orange->set_segments (31); };       print $@;
- eval { $orange->set_grower ("Mr. Nice"); }; print $@;
- eval { $orange->set_type (''); };           print $@;
- eval { $orange->set_type (undef); };        print $@;
- eval { $orange->set_tag (undef); };         print $@;
-
- # if you prefer
- $orange->get( "juiciness" );
- $orange->set( juiciness => 123 );
-
- # Re-configure init_default
- $orange->set_init_default( juiciness => sub { int(rand(45)) } );
+ $object->set_foo("Something");   # dies - not an integer
 
 =head1 DESCRIPTION
 
-Class::Tangram is a common base class originally intended for use with
-Tangram objects, that gives you free constructors, access methods,
-update methods, and a destructor that should help in breaking circular
-references for you. Type checking is achieved by parsing the Tangram
-schema for the object, which is contained within the object class in
-an exported variable C<$schema>.
+Class::Tangram is a tool for defining objects attributes.  Simply
+define your object's fields/attributes using the same syntax
+introduced in _A Guided Tour of Tangram_, and you get objects that
+work As You'd Expect(tm).
 
-After writing this I found that it was useful for merely adding type
-checking and validation to arbitrary objects.  There are several
-modules on CPAN to do that already, but many don't have finely grained
-type checking, and none of them integrated with Tangram or any other
-object persistence framework quite so easily.
+Class::Tangram has no dependancy upon Tangram, and vice versa.
+Neither requires anything special of your objects, nor do they insert
+any special fields into your objects.  This is a very important
+feature with innumerable benefits, and few (if any) other object
+persistence tools have this feature.
 
-=head1 DEPENDENCIES
+So, fluff aside, let's run through how you use Class::Tangram to make
+objects.
 
-The following modules are required to be installed to use
-Class::Tangram:
+First, you decide upon the attributes your object is going to have.
+You might do this using UML, or you might pick an existing database
+table and declare each column to be an attribute (you can leave out
+"id"; that one is implicit).
 
-   Set::Object => 1.02
-   Pod::Constants => 0.11
-   Test::Simple => 0.18
-   Date::Manip => 5.21
+Your object should use Class::Tangram as a base class;
 
-Test::Simple and Date::Manip are only required to run the test suite.
+  use base qw(Class::Tangram)
 
-If you find Class::Tangram passes the test suite with earlier versions
-of the above modules, please send me an e-mail.
+or for older versions of perl:
 
-=head2 MODULE RELEASE
+  use Class::Tangram;
+  use vars qw(@ISA);
+  @ISA = qw(Class::Tangram)
 
-This is Class::Tangram version 1.11.
+You should then define a C<$fields> variable in the scope of the
+package, that is a B<hash> from attribute B<types> (see
+L<Tangram::Type>) to either an B<array> of B<attribute names>, or
+another B<hash> from B<attribute names> to B<options hashes> (or
+C<undef>).  The layout of this structure coincides with the C<fields>
+portion of a tangram schema (see L<Tangram::Schema>).  Note: the term
+`schema' is used frequently to refer to the C<$fields> structure.
+
+For example,
+
+ package MyObject;
+ use base qw(Class::Tangram);
+
+ our $fields = {
+     int => {
+         juiciness => undef,
+         segments => {
+             # this code reference is called when this
+             # attribute is set, to check the value is
+             # OK
+             check_func => sub {
+                 die "too many segments"
+                     if (${(shift)} > 30);
+             },
+             # the default for this attribute.
+             init_default => 7,
+         },
+     },
+     ref => {
+        grower => undef,
+     },
+
+     # 'required' attributes - insist that these fields are
+     # set, both with constructor and set()/set_X methods
+     string => {
+         # true: 'type' must have non-empty value (for
+         # strings) or be logically true (for other types)
+	 type => { required => 1 },
+
+	 # false: 'tag' must be defined but may be empty
+	 tag => { required => '' },
+     },
+
+     # fields allowed by Class::Tangram but not ever
+     # stored by Tangram - no type checking by default
+     transient => [ qw(_tangible) ],
+ };
+
+It is of critical importance to your sanity that you understand how
+anonymous hashes and anonymous arrays work in Perl.  Some additional
+features are used above that have not yet been introduced, but you
+should be able to look at the above data structure and see that it
+satisfies the conditions stated in the paragraph before it.  If it is
+hazy, I recommend reading L<perlref> or L<perlreftut>.
+
+When the schema for the object is first imported (see L<Schema
+import>), Class::Tangram defines accessor functions for each of the
+attributes defined in the schema.  These accessor functions are then
+available as C<$object-E<gt>function> on created objects.  By virtue
+of inheritance, various other methods are available.
+
+From Class::Tangram 1.12 onwards, no use of perl's C<AUTOLOAD>
+functionality is used.
 
 =cut
 
 use strict;
 use Carp qw(croak cluck);
 
-use vars qw($AUTOLOAD $VERSION %defaults);
+use vars qw($VERSION %defaults);
 
 use Set::Object;
+
 use Pod::Constants -trim => 1,
     'MODULE RELEASE' => sub { ($VERSION) = /(\d+\.\d+)/ },
-    'Default Type Checking' => sub { %defaults = eval };
-
-local $AUTOLOAD;
+    'Default Type Checking' => sub { %defaults = eval; };
 
 # $types{$class}->{$attribute} is the tangram type of each attribute
 my (%types);
@@ -216,17 +164,22 @@ my (%abstract);
 
 =head1 METHODS
 
+The following methods are available for all Class::Tangram objects
+
 =head2 Constructor
+
+A Constructor is a method that returns a new instance of an object.
 
 =over 4
 
 =item Class-E<gt>new (attribute1 =E<gt> value, attribute2 =E<gt> value)
 
-sets up a new object of type C<Class>, with attributes set to the
+Sets up a new object of type C<Class>, with attributes set to the
 values supplied.
 
-Can also be used as an object method, in which case it returns a
-B<copy> of the object, without any deep copying.
+Can also be used as an object method (normal use is as a "class
+method"), in which case it returns a B<copy> of the object, without
+any deep copying.
 
 =cut
 
@@ -241,7 +194,8 @@ sub new ($@)
     my $self = { };
     bless $self, $class;
 
-    exists $check{$class} or import_schema($class);
+    # auto-load schema as necessary
+    exists $types{$class} or import_schema($class);
 
     croak "Attempt to instantiate an abstract type"
 	if ($abstract{$class});
@@ -256,46 +210,68 @@ sub new ($@)
     else
     {
 	$self->set (@values); # start with @values
+    }
 
-	# now fill in fields that have defaults
-	while ( my ($attribute, $default) =
-		each %{$init_defaults{$class}} ) {
+    $self->_fill_init_default();
+    $self->_check_required();
 
-	    next if (exists $self->{$attribute});
+    return $self;
 
-	    if (ref $default eq "CODE") {
-		# sub { }, attribute gets return value
-		$self->{$attribute} = $default->($self);
+}
 
-	    } elsif (ref $default eq "HASH") {
-		# hash ref, copy hash
-		$self->{$attribute} = { %{ $default } };
+sub _fill_init_default {
+    my $self = shift;
+    my $class = ref $self or die "_fill_init_default usage error";
 
-	    } elsif (ref $default eq "ARRAY") {
-		# array ref, copy array
-		$self->{$attribute} = [ @{ $default } ];
+    # fill in fields that have defaults
+    while ( my ($attribute, $default) =
+	    each %{$init_defaults{$class}} ) {
 
-	    } else {
-		# something else, an object or a scalar
-		$self->{$attribute} = $default;
-	    }
+	next if (exists $self->{$attribute});
+
+	my $setter = "set_$attribute";
+	if (ref $default eq "CODE") {
+	    # sub { }, attribute gets return value
+	    $self->$setter( $default->($self) );
+
+	} elsif (ref $default eq "HASH") {
+	    # hash ref, copy hash
+	    $self->$setter( { %{ $default } } );
+
+	} elsif (ref $default eq "ARRAY") {
+	    # array ref, copy array
+	    $self->$setter( [ @{ $default } ] );
+
+	} else {
+	    # something else, an object or a scalar
+	    $self->$setter($default);
 	}
+    }
+}
 
-        # make sure field is not undef if 'required' option is set
-	#     ** UNLESS ** we're loading from the database
-	if (my $required = $required_attributes{$class}
-	        and caller !~ /^Tangram::/) {
+sub _check_required {
+    my $self = shift;
+    my $class = ref $self;
 
+    # make sure field is not undef if 'required' option is set
+    if (my $required = $required_attributes{$class}) {
+
+	# find the immediate caller outside of this package
+	my $i = 0;
+	$i++ while UNIVERSAL::isa($self, scalar(caller($i))||";->");
+
+	# give Tangram some lenience - it is exempt from the effects
+	# of the "required" option
+	unless ( caller($i) =~ m/^Tangram::/ ) {
 	    my @missing;
 	    while ( my ($attribute, $value) = each %$required ) {
 		push(@missing, $attribute)
 		    if ! exists $self->{$attribute};
 	    }
-	    croak("constructor call missing required attribute(s): "
-	          .join(', ',@missing).'.') if @missing;
+	    croak("object missing required attribute(s): "
+		  .join(', ',@missing).'.') if @missing;
 	}
     }
-    return $self;
 }
 
 =back
@@ -309,9 +285,12 @@ sub new ($@)
 Sets the attributes of the given instance to the given values.  croaks
 if there is a problem with the values.
 
+This function simply calls C<$instance-E<gt>set_attribute($value)> for
+each of the C<attribute =E<gt> $value> pairs passed to it.
+
 =cut
 
-sub set($@) {
+sub set {
     my $self = shift;
 
     # yes, this is a lot to do.  yes, it's slow.  But I'm fairly
@@ -320,80 +299,77 @@ sub set($@) {
     UNIVERSAL::isa($self, "Class::Tangram") or croak "type mismatch";
     my $class = ref $self;
     exists $check{$class} or import_schema($class);
+    croak "set must be called with an even number of arguments"
+	if (scalar(@_) & 1);
 
     while (my ($name, $value) = splice @_, 0, 2) {
+
+	my $setter = "set_".$name;
+
 	croak "attempt to set an illegal field $name in a $class"
-	    if (!defined $check{$class}->{$name});
+	    unless $self->can($setter);
 
-	#local $@;
-
-	# these handlers die on failure
-	eval { $check{$class}->{$name}->(\$value) };
-	$@ && croak ("value failed type check - ${class}->{$name}, "
-		     ."\"$value\" ($@)");
-
-	#should be ok now
-	$self->{$name} = $value;
+	$self->$setter($value);
     }
 }
 
-=item $instance->get($attribute)
+=item $instance->get("attribute")
 
-Gets the value of C<$attribute>.  If the attribute in question is a
-set, and this method is called in list context, then it returns the
-MEMBERS of the set (if called in scalar context, it returns the
-Set::Object container).
+Gets the value of C<$attribute>.  This simply calls
+C<$instance-E<gt>get_attribute>.  If multiple attributes are listed,
+then a list of the attribute values is returned in order.  Note that
+you get back the results of the scalar context C<get_attribute> call
+in this case.
 
 =cut
 
-sub get($$) {
+sub get {
     my $self = shift;
-    my $field = shift;
+    croak "get what?" unless @_;
     UNIVERSAL::isa($self, "Class::Tangram") or croak "type mismatch";
 
     my $class = ref $self;
     exists $check{$class} or import_schema($class);
-    croak "attempt to read an illegal field $field in a $class"
-	if (!defined $check{$class}->{$field});
 
-    # make sure we don't ever return "undef" for fields that might be
-    # used as a reference, and return contents of containers when in
-    # list context
-    if ((local $_ = $types{$class}->{$field}) =~ m/^i?set$/o) {
+    my $multiget = (scalar(@_) != 1);
 
-	$self->{$field} ||= Set::Object->new();
-	return $self->{$field}->members if wantarray;
+    my @return;
+    while ( my $field = shift ) {
+	my $getter = "get_".$field;
+	croak "attempt to read an illegal field $field in a $class"
+	    unless $self->can($getter);
 
-    } elsif (m/^i?array$/o) {
-
-	$self->{$field} ||= [];
-	return @{ $self->{$field} } if wantarray;
-
-    } elsif ( m/^i?hash$/o)  {
-
-	$self->{$field} ||= {};
-	return %{ $self->{$field} } if wantarray;
+	if ( $multiget ) {
+	    push @return, scalar($self->$getter);
+	} else {
+	    return $self->$getter;
+	}
     }
 
-    return $self->{$field};
+    return @return;
 }
 
 =item $instance->attribute($value)
 
 If C<$value> is not given, then
-this is equivalent to C<$instance-E<gt>get("attribute")>
+this is equivalent to C<$instance-E<gt>get_attribute>
 
 If C<$value> is given, then this is equivalent to
-C<$instance-E<gt>set("attribute", $value)>.  This usage issues a
-warning; you should change your code to use the set_attribute syntax
-for better readability (object methods should always be a verb).
+C<$instance-E<gt>set_attribute($value)>.  This usage issues a warning
+if warnings are on; you should change your code to use the
+set_attribute syntax for better readability.  OO veterans will tell
+you that for maintainability object method names should always be a
+verb.
 
 =item $instance->get_attribute
 
 =item $instance->set_attribute($value)
 
-Equivalent to C<$instance-E<gt>get("attribute")> and
-C<$instance-E<gt>set(attribute =E<gt> $value)>, respectively.
+The normative way of getting and setting attributes.  If you wish to
+override the behaviour of an object when getting or setting an
+attribute, override these functions.  They will be called when you use
+C<$instance-E<gt>attribute>, C<$instance-E<gt>get()>, constructors,
+etc.
 
 =item $instance->attribute_includes(@objects)
 
@@ -405,123 +381,109 @@ C<$instance-E<gt>set(attribute =E<gt> $value)>, respectively.
 
 =item $instance->attribute_remove(@objects)
 
-Equivalent to calling
-C<$instance-E<gt>attribute-E<gt>includes(@objects)>, etc.  This only
-works if the attribute in question is a "set" or "iset" type.
-
-=cut
-
-sub AUTOLOAD {
-    my $self = shift;
-    UNIVERSAL::isa($self, "Class::Tangram")
-	    or croak "type mismatch/$self->$AUTOLOAD undefined";
-
-    my $class = ref $self;
-    exists $check{$class} or import_schema($class);
-    $AUTOLOAD =~ s/.*://;
-    if ($AUTOLOAD =~ m/^(set_|get_)?([^:]+)$/
-	and defined $types{$class}->{$2}) {
-
-	# perl sucks at this type of test
-	my $value = shift;
-	if ((defined $1 and $1 eq "set_")
-	    or (!defined $1 and defined $value)) {
-
-	    if ($^W && !defined $1) {
-		cluck("The OO police say change your call to "
-		      ."\$obj->set_$2");
-	    }
-	    return set($self, $2, $value);
-	} else {
-	    return get($self, $2);
-	}
-    } elsif (my ($attr, $method) =
-	     ($AUTOLOAD =~ m/^(.*)_(includes|insert|
-			     size|clear|remove)$/x)
-	     and $types{$class}->{$1} =~ m/^i?set$/) {
-	# would like to use GOTO here, but it segfaults
-	return $self->get($attr)->$method(@_);
-	#unshift @_, $self;
-	#my $x;
-	#if ( $x = (get($self, $attr))->can($method) ) {
-	    #print ref($x), "\n";
-	    #goto $x;
-	#} else {
-	    #return undef;
-	#}
-    } else {
-	croak("unknown method/attribute ${class}->$AUTOLOAD called");
-    }
-}
-
-=item $instance->getset($attribute, $value)
-
-If you're replacing the AUTOLOAD function in your Class::Tangram
-derived class, but would still like to use the behaviour for one or
-two fields, then you can define functions for them to fall through to
-the Class::Tangram method, like so:
-
- sub attribute { $_[0]->SUPER::getset("attribute", $_[1]) }
-
-=cut
-
-sub getset($$;$) {
-    UNIVERSAL::isa($_[0], "Class::Tangram") or croak "type mismatch";
-
-    if ($#_ > 1) {
-	goto &set;
-    } else {
-	goto &get;
-    }
-
-}
+This suite of functions applies to attributes that are sets (C<iset>
+or C<set>).  It could in theory also apply generally to all
+collections - ie also arrays (C<iarray> or C<array>), and hashes
+(C<hash>, C<ihash>).  This will be implemented subject to user demand.
 
 =back
 
-=head2 Attribute Type Checking
+B<Note:> The above functions can be overridden, but they may not be
+called with the C<$self-E<gt>SUPER::> superclass chaining method.
+This is because they are not defined within the scope of
+Class::Tangram, only your package.
 
-Class::Tangram provides type checking of attributes, which are defined
-via three per-attribute options:
+=cut
+
+=head1 ATTRIBUTE TYPE CHECKING
+
+Class::Tangram provides type checking of attributes when attributes
+are set - either using the default C<set_attribute> functions, or
+created via the C<new> constructor.
+
+The checking has default behaviour for each type of attribute (see
+L<Default Type Checking>), and can be extended arbitrarily via a
+per-attribute C<check_func>, described below.  Critical attributes can
+be marked as such with the C<required> flag.
+
+The specification of this type checking is placed in the class schema,
+in the per-attribute B<options hash>.  This is a Class::Tangram
+extension to the Tangram schema structure.
 
 =over
 
 =item check_func
 
-A function that is called with a reference to the new value in
-C<$_[0]>.  It should call C<die()> if the value is bad.
+A function that is called with a B<reference> to the new value in
+C<$_[0]>.  It should call C<die()> if the value is bad.  Note that
+this check_func will never be passed an undefined value; this is
+covered by the "required" option, below.
+
+In the example schema (above), the attribute C<segments> has a
+C<check_func> that prevents setting the value to anything greater than
+30.  Note that it does not prevent you from setting the value to
+something that is not an integer; if you define a C<check_func>, it
+replaces the default.
+
+=item required
+
+If this option is set to a true value, then the attribute must be set
+to a true value to pass type checking.  For string attributes, this
+means that the string must be defined and non-empty (so "0" is true).
+For other attribute types, the normal Perl definition of logical truth
+is used.
+
+If the required option is defined but logically false, (ie "" or 0),
+then the attribute must also be defined, but may be set to a logically
+false value.
+
+If the required option is undefined, then the attribute may be set to
+an undefined value.
+
+For integration with tangram, the C<new()> function has a special
+hack; if it is being invoked from within Tangram, then the required
+test is skipped.
+
+=back
+
+=head2 Other per-attribute options
+
+Any of the following options may be inserted into the per-attribute
+B<options hash>:
+
+=over
+
+=item init_default
+
+This value specifies the default value of the attribute when
+it is created with C<new()>.  It is a scalar value, it is
+copied to the fresh object.  If it is a code reference, that
+code reference is called and its return value inserted into
+the attribute.  If it is an ARRAY or HASH reference, then
+that array or hash is COPIED into the attribute.
 
 =item destroy_func
 
 If anything special needs to happen to this attribute before the
 object is destroyed (or when someone calls
-C<$object-E<gt>clear_refs()>), then define this.
-
-=item required
-
-If this option is set to a true value, then the attribute must be set
-to a true value to pass type checking.  If it is defined but logically
-false, (ie "" or 0), then the attribute must also be defined, but may
-be logically false.  This is implemented by a simple wrapper to the
-check_func for the attribute.
+C<$object-E<gt>clear_refs()>), then define this.  It is called as
+C<$sub-E<gt>($object, "attribute")>.
 
 =back
 
-These functions are automatically defined for the built-in Tangram
-types.  In some cases, extra information about what may be put into
-the attribute is cleaned from the SQL column type definition.  This is
-covered by the section on C<parse_X> functions, below.
-
 =head2 Default Type Checking
 
- # The following list is eval'ed from this documentation, and used as
- # default attribute options for the specified types.  So, eg, the
- # default "init_default" for "set" types is a subroutine that returns
- # a new Set::Object container.
+ # The following list is eval'ed from this documentation
+ # when Class::Tangram loads, and used as default attribute
+ # options for the specified types.  So, eg, the default
+ # "init_default" for "set" types is a subroutine that
+ # returns a new Set::Object container.
 
- # "parse" is special - it is passed the options hash given by the
- # user and should return (\&check_func, \&destroy_func).  This is how
- # the magical string type checking is performed - see the entry for
- # parse_string(), below.
+ # "parse" is special - it is passed the options hash given
+ # by the user and should return (\&check_func,
+ # \&destroy_func).  This is how the magical string type
+ # checking is performed - see the entry for parse_string(),
+ # below.
 
  int         => { check_func   => \&check_int },
  real        => { check_func   => \&check_real },
@@ -533,15 +495,12 @@ covered by the section on C<parse_X> functions, below.
  iarray      => { check_func   => \&check_array,
 		  destroy_func => \&destroy_array },
  flat_array  => { check_func   => \&check_flat_array },
-
  set         => { check_func   => \&check_set,
 		  destroy_func => \&destroy_set,
-		  init_default => sub { Set::Object->new() }, },
-
+		  init_default => sub { Set::Object->new() } },
  iset        => { check_func   => \&check_set,
 		  destroy_func => \&destroy_set,
-		  init_default => sub { Set::Object->new() }, },
-
+		  init_default => sub { Set::Object->new() } },
  dmdatetime  => { check_func   => \&check_dmdatetime },
  rawdatetime => { check_func   => \&check_rawdatetime },
  rawdate     => { check_func   => \&check_rawdate },
@@ -549,7 +508,8 @@ covered by the section on C<parse_X> functions, below.
  flat_hash   => { check_func   => \&check_flat_hash },
  transient   => { check_func   => \&check_nothing },
  hash        => { check_func   => \&check_hash,
-		  destroy_func => \&destroy_hash },
+		  destroy_func => \&destroy_hash,
+		  get_func     => \&get_hash },
  perl_dump   => { check_func   => \&check_nothing }
 
 =over
@@ -568,7 +528,7 @@ checks that the supplied value is less than 255 characters long.
 =cut
 
 sub check_string {
-    croak "string ${$_[0]} too long"
+    croak "string too long"
 	if (length ${$_[0]} > 255);
 }
 
@@ -580,11 +540,11 @@ checks that the value is a (possibly signed) integer
 
 my $int_re = qr/^-?\d+$/;
 sub check_int {
-    croak "${$_[0]} is not an int"
+    croak "not an integer"
 	if (${$_[0]} !~ m/$int_re/o);
 }
 
-=item check_real 
+=item check_real
 
 checks that the value is a real number, by stringifying it and
 matching it against (C<m/^-?\d*(\.\d*)?(e-?\d*)?$/>).  Inefficient?
@@ -594,7 +554,7 @@ Yes.  Patches welcome.
 
 my $real_re = qr/^-?\d*(\.\d*)?(e-?\d*)?$/;
 sub check_real {
-    croak "${$_[0]} is not a real"
+    croak "not a real number"
 	if (${$_[0]} !~ m/$real_re/o);
 }
 
@@ -1071,22 +1031,31 @@ methods.
 
 =head2 Schema Import
 
+ our $fields = { int => [ qw(foo bar) ],
+                 string => [ qw(baz quux) ] };
+
+ # Version 1.115 and below compatibility:
+ our $schema = {
+    fields => { int => [ qw(foo bar) ],
+                string => [ qw(baz quux) ] }
+    };
+
 =over
 
 =item Class::Tangram::import_schema($class)
 
-Parses a tangram object schema, in C<${"${class}::schema"}> to the
-internal representation used to check types values by C<set()>.
-Called automatically on the first C<get()>, C<set()>, or C<new()> for
-an object of a given class.
+Parses a tangram object field list, in C<${"${class}::fields"}> (or
+C<${"${class}::schema"}-E<gt>{fields}> to the internal type information
+hashes.  It will also define all of the attribute accessor and update
+methods in the C<$class> package.
+
+Note that calling this function twice for the same class is not
+tested and may produce arbitrary results.  Patches welcome.
 
 =cut
 
-sub import_schema($) {
+sub import_schema($) {    # Damn this function is long
     my $class = shift;
-
-    # FIXME - expand the run time type information functions, then use
-    # them for this function.
 
     eval {
 	my ($fields, $bases, $abstract);
@@ -1097,16 +1066,19 @@ sub import_schema($) {
 	    no strict 'refs';
 	    local $^W=0;
 	    eval {
-		$fields = ${"${class}::schema"}->{fields};
+		$fields = (${"${class}::fields"} ||
+			   ${"${class}::schema"}->{fields});
+		$abstract = (${"${class}::abstract"} ||
+			     ${"${class}::schema"}->{abstract});
 		$bases = ${"${class}::schema"}->{bases};
-		$abstract = ${"${class}::schema"}->{abstract};
 	    };
 	    if ( my @stack = @{"${class}::ISA"}) {
 		# clean "bases" information from @ISA
 		my %seen = map { $_ => 1 } $class, __PACKAGE__;
 		$bases = [];
 		while ( my $super = pop @stack ) {
-		    if ( defined ${"${super}::schema"} ) {
+		    if ( defined ${"${super}::schema"}
+			 or defined ${"${super}::fields"} ) {
 			push @$bases, $super;
 		    } else {
 			push @stack, grep { !$seen{$_}++ }
@@ -1116,7 +1088,7 @@ sub import_schema($) {
 		if ( !$fields and !@$bases ) {
 		    die ("No schema and no Class::Tangram "
 			 ."superclass for $class; define "
-			 ."${class}::schema!");
+			 ."${class}::fields!");
 		}
 	    }
 	}
@@ -1172,15 +1144,16 @@ sub import_schema($) {
 		# this is what we are finding out about each attribute
 		# $type is already set
 		my ($default, $check_func, $required, $cleaner);
-
 		# set defaults from what they give
-		if (ref $options eq "HASH") {
+		$options ||= {};
+		if (ref $options eq "HASH" or
+		    UNIVERSAL::isa($options, 'Tangram::Type')) {
 		    ($check_func, $default, $required, $cleaner)
 			= @{$options}{qw(check_func init_default
 					 required destroy_func)};
 		}
 
-		# Full their settings with info from defaults
+		# Fill their settings with info from defaults
 		if (ref $def eq "HASH") {
 
 		    # try to magically parse their options
@@ -1193,28 +1166,155 @@ sub import_schema($) {
 		    # fall back to defaults for this class
 		    $check_func ||= $def->{check_func};
 		    $cleaner ||= $def->{destroy_func};
-		    $default ||= $def->{init_default};
+		    $default = $def->{init_default} unless defined $default;
 		}
 
 		# everything must be checked!
 		die "No check function for ${class}\->$attribute (type $type)"
 		    unless (ref $check_func eq "CODE");
 
-		# for "required" attributes, insert an additional check
-		if ( defined $required ) {
-		    my $old_check_func = $check_func;
-		    my $req = $required;
-		    $check_func = sub {
-			croak "undef not allowed"
-			    unless defined ${$_[0]};
-		        croak "empty value not allowed"
-			  if ($req && ${$_[0]} eq '');
-			goto $old_check_func;
-		    };
-	        }
-
 		$types{$class}->{$attribute} = $type;
 		$check{$class}->{$attribute} = $check_func;
+		{
+		    no strict "refs";
+		    local ($^W) = 0;
+
+		    # build an appropriate "get_attribute" method, and
+		    # define other per-type methods
+		    my ($get_closure, $set_closure);
+
+		    # implement with closures for speed
+		    if ( $type =~ m/i?set/ ) {
+
+			# GET_$attribute (Set::Object)
+			$get_closure = sub {
+			    my $self = shift;
+			    if ( !defined $self->{$attribute} ) {
+				$self->{$attribute} = Set::Object->new();
+			    }
+			    my $set = $self->{$attribute};
+			    ( wantarray ? $set->members : $set )
+			};
+
+			# and add a whole load of other functions too
+			for my $set_method (qw(includes insert size clear
+					       remove)) {
+
+			    # ${attribute}_includes, etc
+			    my $set_method_closure = sub {
+				my $self = shift;
+				$self->{$attribute} = Set::Object->new()
+				    unless defined $self->{$attribute};
+				return $self->{$attribute}->$set_method(@_);
+			    };
+			    *{$class."::${attribute}_$set_method"} =
+				$set_method_closure unless 
+				    (defined &{$class."::${attribute}_$set_method"});
+			}
+
+		    } elsif ( $type =~ m/i?array/ ) {
+
+			# GET_$attribute (array)
+			# allow array slices, and return whole array
+			# in list context
+			$get_closure = sub {
+			    my $array = ($_[0]->{$attribute} ||= []);
+			    shift;
+			    if ( @_ ) {
+				@{$array}[@_];
+			    } else {
+				( wantarray ? @{ $array } : $array )
+			    }
+			};
+
+		    } elsif ( $type =~ m/i?hash/ ) {
+			# GET_$attribute (hash)
+			# allow hash slices, and return whole hash in
+			# list context
+			$get_closure = sub {
+			    my $hash = ($_[0]->{$attribute} ||= {});
+			    shift;
+			    if ( @_ ) {
+				@{$hash}{@_}
+			    } else {
+				( wantarray ? %{ $hash } : $hash );
+			    }
+			};
+		    } else {
+			# GET_$attribute (scalar)
+			# return value only
+			$get_closure = sub { $_[0]->{$attribute}; };
+		    }
+
+		    *{$class."::get_$attribute"} = $get_closure
+			unless (defined &{$class."::get_$attribute"});
+
+		    # SET_$attribute (all)
+		    my $checkit = \$check{$class}->{$attribute};
+
+		    # required hack for strings - duplicate the code
+		    # to avoid the following string comparison for
+		    # every set
+		    if ( $type eq "string" ) {
+			$set_closure = sub {
+			    my $self = shift;
+			    my $value = shift;
+			    eval {
+				if ( defined $value and length $value ) {
+				    ${$checkit}->(\$value);
+				} elsif ( $required ) {
+				    die "value is required"
+				} elsif ( defined $required ) {
+				    die "value must be defined"
+					unless defined $value;
+				}
+			    };
+			    $@ && croak("value failed type check - ${class}->"
+					."set_$attribute('$value') ($@)");
+			    $self->{$attribute} = $value;
+			};
+		    } else {
+			$set_closure = sub {
+			    my $self = shift;
+			    my $value = shift;
+			    eval {
+				if ( $value ) {
+				    ${$checkit}->(\$value);
+				} elsif ( $required ) {
+				    die "value is required"
+				} elsif ( defined $required ) {
+				    die "value must be defined"
+					unless defined $value;
+				}
+			    };
+			    $@ && croak("value failed type check - ${class}->"
+				    ."set_$attribute('$value') ($@)");
+			    $self->{$attribute} = $value;
+			};
+		    }
+
+		    # now export them into the caller's namespace
+		    my ($getter, $setter)
+			= ("get_$attribute", "set_$attribute");
+		    *{$class."::$getter"} = $get_closure
+			unless defined &{$class."::$getter"};
+		    *{$class."::$setter"} = $set_closure
+			unless defined &{$class."::$setter"};
+
+		    *{$class."::$attribute"} = sub {
+			my $self = shift;
+			if ( @_ ) {
+			    warn("The OO Police say change your call "
+				 ."to ->set_$attribute") if ($^W);
+			    #goto $set_closure;  # NO!  BAD!! :-)
+			    return $self->$setter(@_);
+			} else {
+			    return $self->$getter(@_);
+			    #goto $get_closure;
+			}
+		    } unless defined &{$class."::$attribute"};
+		}
+
 		$cleaners{$class}->{$attribute} = $cleaner
 		    if (defined $cleaner);
 		$init_defaults{$class}->{$attribute} = $default
@@ -1236,6 +1336,9 @@ sub import_schema($) {
 
 It is possible to access the data structures that Class::Tangram uses
 internally to verify attributes, create objects and so on.
+
+This should be considered a B<HIGHLY EXPERIMENTAL> interface to
+B<INTERNALS> of Class::Tangram.
 
 Class::Tangram keeps seven internal hashes:
 
@@ -1338,6 +1441,19 @@ sub required_attributes($) {
     return $required_attributes{$class};
 }
 
+=item Class::Tangram::init_defaults($class)
+
+Returns a hash ref from attribute names to the default intial values for
+that attribute.  May also be called as a method, as in
+C<$instance-E<gt>init_defaults>.
+
+=cut
+
+sub init_defaults($) {
+    my $class = ref $_[0] || $_[0];
+    return $init_defaults{$class};
+}
+
 =item Class::Tangram::known_classes
 
 This function returns a list of all the classes that have had their
@@ -1416,12 +1532,26 @@ B<A guided tour of Tangram, by Sound Object Logic.>
 
  http://www.soundobjectlogic.com/tangram/guided_tour/fs.html
 
-=head1 BUGS/TODO
+=head1 DEPENDENCIES
 
-More AUTOLOAD methods along the line of C<x_includes>, in particular
-for container types such as array, hash, etc.  Either that or
-encourage people to return tied variables if they want to extend that
-particular functionality.
+The following modules are required to be installed to use
+Class::Tangram:
+
+   Set::Object => 1.02
+   Pod::Constants => 0.11
+   Test::Simple => 0.18
+   Date::Manip => 5.21
+
+Test::Simple and Date::Manip are only required to run the test suite.
+
+If you find Class::Tangram passes the test suite with earlier versions
+of the above modules, please send me an e-mail.
+
+=head2 MODULE RELEASE
+
+This is Class::Tangram version 1.12.
+
+=head1 BUGS/TODO
 
 There should be more functions for breaking loops; in particular, a
 standard function called C<drop_refs($obj)>, which replaces references
@@ -1444,6 +1574,86 @@ ie
 
 Sam Vilain, <sam@vilain.net>
 
+=head2 CREDITS
+
+ # Some modifications
+ # Copyright Å© 2001 Micro Sharp Technologies, Inc., Vancouver, WA, USA
+ # Author: Karl M. Hegbloom <karlheg@microsharp.com>
+ # Perl Artistic Licence.
+
+Many thanks to Charles Owens and David Wheeler for their feedback,
+ideas, patches and bug testing.
+
 =cut
 
 69;
+
+__END__
+
+ # From old SYNOPSIS, I decided it was too long.  A lot of
+ # the information here needs to be re-integrated into the
+ # POD.
+
+ package Project;
+
+ # here's where we build the individual object schemas into
+ # a Tangram::Schema object, which the Tangram::Storage
+ # class uses to know which tables and columns to find
+ # objects.
+ use Tangram::Schema;
+
+ # TIMTOWTDI - this is the condensed manpage version :)
+ my $dbschema = Tangram::Schema->new
+     ({ classes =>
+       [ 'Orange'   => { fields => $Orange::fields },
+         'MyObject' => { fields => $MyObject::schema }, ]});
+
+ sub schema { $dbschema };
+
+ package main;
+
+ # See Tangram::Relational for instructions on using
+ # "deploy" to create the database this connects to.  You
+ # only have to do this if you want to write the objects to
+ # a database.
+ use Tangram::Relational;
+ my ($dsn, $u, $p);
+ my $storage = Tangram::Relational->connect
+                   (Project->schema, $dsn, $u, $p);
+
+ # Create an orange
+ my $orange = Orange->new(
+			  juiciness => 8,
+			  type => 'Florida',
+			  tag => '',  # required
+			 );
+
+ # Store it
+ $storage->insert($orange);
+
+ # This is how you get values out of the objects
+ my $juiciness = $orange->juiciness;
+
+ # a "ref" must be set to a blessed object, any object
+ my $grower = bless { name => "Joe" }, "Farmer";
+ $orange->set_grower ($grower);
+
+ # these are all illegal - type checking is fairly strict
+ my $orange = eval { Orange->new; };         print $@;
+ eval { $orange->set_juiciness ("Yum"); };   print $@;
+ eval { $orange->set_segments (31); };       print $@;
+ eval { $orange->set_grower ("Mr. Nice"); }; print $@;
+
+ # Demonstrate some "required" functionality
+ eval { $orange->set_type (''); };           print $@;
+ eval { $orange->set_type (undef); };        print $@;
+ eval { $orange->set_tag (undef); };         print $@;
+
+ # this works too, but is slower
+ $orange->get( "juiciness" );
+ $orange->set( juiciness => 123,
+	       segments  => 17 );
+
+ # Re-configure init_default - make each new orange have a
+ # random juiciness
+ $orange->set_init_default( juiciness => sub { int(rand(45)) } );

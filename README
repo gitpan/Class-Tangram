@@ -1,4 +1,4 @@
-Class::Tangram version 1.11
+Class::Tangram version 1.12
 ===========================
 
 Class::Tangram serves to provide a base class for deriving Tangram
@@ -31,16 +31,30 @@ This module requires Set::Object 1.02 or higher, and Pod::Constants
 Test::Simple 0.18 and Date::Manip 0.32 is also required to run the
 test suite.
 
+UPGRADING FROM 1.11
+
+The biggest change is that previously, if you wanted to override what
+happens when you get or set an attribute, you should have defined
+set() and get() functions in your derived class.  Now, you are going
+to have to define methods called get_attribute() and/or
+set_attribute().  attribute() is a virtual method that calls
+get_attribute() or set_attribute() - depending on the number of
+arguments given - so don't override that unless you understand the
+consequences.
+
+The semantics for specifying an object's fields has changed slightly;
+instead of defining $YourClass::schema, you should define
+$YourClass::fields, which should contain what
+$YourClass::schema->{fields} used to contain.  The module still looks
+in the old location, so don't fret about changing your modules too
+much :-).
+
 UPGRADING FROM 1.09
 
 There is only a very minor source incompatible change, that would
 affect people who used tied values for their init_default attribute
 options.  ie, it should not affect anyone.  e-mail me if the new
 behaviour is not what you want!
-
-UPGRADING FROM 1.08
-
-There are no source incompatibility changes since 1.08.
 
 UPGRADING FROM 1.07
 

@@ -1,5 +1,16 @@
 Revision history for Perl extension Class::Tangram
 
+2002-05-29
+   o Release 1.12
+   o Complete removal of AUTOLOAD.  More backwards compatibility than
+     1.115
+   o Massive documentation simplification and rewording
+
+2002-05-22
+   o Release 1.115 (not released publicly)
+   o Early changes to make the module more efficient - closures and
+     direct symbol table manipulation are used instead of AUTOLOAD.
+
 2002-04-15
    o Release 1.11
    o Minor Bugfix - "iset" default init_default had a typo relating to

@@ -5,7 +5,7 @@
 
 use strict;
 use lib "../blib/lib";
-use Test::More tests => 73;
+use Test::More tests => 80;
 use Data::Dumper;
 use Date::Manip qw(ParseDate);
 
@@ -77,7 +77,7 @@ $schema = {
 		      {
 		       foo => {
 			       check_func => sub {
-				   die if (${$_[0]} ne "bar");
+				   die if (${$_[0]} !~ /^ba[rz]$|cheese|banana/);
 				   },
 			       init_default => "baz",
 			       },
@@ -184,6 +184,13 @@ $schema =
 		},
      }
     };
+
+sub create {
+    my $class = shift;
+
+    my $self = $class->SUPER::new(@_);
+}
+
 
 package MoreFussy;
 use vars qw(@ISA);
@@ -503,8 +510,38 @@ isnt ($@, "", "subclass 'required' - new w/reqd field that fails check_func");
 eval { new MoreFussy(bar => "", foo => "bar", baz => "" )};
 isnt ($@, "", "subclass 'required' - new w/reqd field that passes check_func");
 
-# missing test - check when loading from DB with missing field
+# check when loading from DB with missing field
+package Tangram::Toaster;
+
+sub toast { Fussy->new(baz => "More cheese", bar => "hi"); }
+sub burn { Fussy->new() }
+sub fry { Fussy->create() }
+sub dodge { (shift)->(); }
+
+package main;
+
+# new() should only moan about 'required' attributes missing when
+# constructed from packages that aren't Tangram::, or something in
+# @{(ref $self).::ISA}
+
+eval { Tangram::Toaster::toast };
+is ($@, "", "'required' - full object, Tangram:: caller, CT::new");
+eval { Tangram::Toaster::burn };
+is ($@, "", "'required' - short object, Tangram:: caller, CT::new");
+eval { Tangram::Toaster::fry };
+is ($@, "", "'required' - short object, Tangram:: caller, subclass::new");
+
+eval { Fussy->create() };
+isnt ($@, "", "'required' - short object, main:: caller, subclass::new");
+eval { Fussy->create(baz => "cheese", bar => "gaga") };
+is ($@, "", "'required' - short object, main:: caller, subclass::new");
+
+eval { Tangram::Toaster::dodge(sub {  Fussy->create(); }) };
+isnt ($@, "", "'required' - short object, Tangram::+main:: caller, subclass::new");
+eval { Tangram::Toaster::dodge ( sub {  Fussy->create(baz => "cheese", bar => "thrrppp"); }) };
+is ($@, "", "'required' - full object, Tangram::+main:: caller, subclass::new");
 
 # Still to write tests for:
 #   - run time type information functions
 #   - checking that fields are not auto-vivified unnecessarily
+#   - function overriding works as expected

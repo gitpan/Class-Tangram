@@ -4,7 +4,8 @@
 #
 
 use strict;
-use Test::More tests => 56;
+use lib "../blib/lib";
+use Test::More tests => 72;
 use Data::Dumper;
 use Date::Manip qw(ParseDate);
 
@@ -158,6 +159,35 @@ use vars qw(@ISA);
 package Testing::One::Two::Three;
 use vars qw(@ISA);
 @ISA=qw(Testing::One::Two);
+
+#---------------------------------------------------------------------
+# for "required" test
+package Fussy;
+use vars qw(@ISA $schema);
+@ISA=qw(Class::Tangram);
+
+$schema =
+    {
+     fields =>
+     {
+      string => {
+		 foo => { required => 1,
+			  init_default => "banana" },
+		 bar => { required => "" },
+		 baz => {
+			 required => 1,
+			 check_func => sub {
+			     die "bad boy"
+				 unless (${$_[0]} =~ m/cheese|^$/)
+			     },
+			},
+		},
+     }
+    };
+
+package MoreFussy;
+use vars qw(@ISA);
+@ISA = qw(Fussy);
 
 #---------------------------------------------------------------------
 package main;
@@ -434,6 +464,45 @@ is ($test->transient_t->(), 37, "Execute transient type");
 eval { $test->set_transient_t("test"); };
 isnt ($@, "", "Set transient type to illegal value");
 
+#---------------------------------------------------------------------
+# "required" fields
+eval { new Fussy(baz => "Wednesleydale cheese", foo => "this" ) };
+isnt ($@, "", "'required' - new w/missing attribute");
+eval { new Fussy(baz => "Wednesleydale cheese", bar => "hi" ) };
+is ($@, "", "'required' - new w/missing attribute + default");
+eval { new Fussy(baz => "Wednesleydale cheese", bar => "hi", foo => "" ) };
+isnt ($@, "", "'required' - new w/missing attr + default + blank");
+eval { new Fussy(foo => "bar", bar => "hi", baz => "Edam cheese")};
+is ($@, "", "'required' - new all non-empty");
+eval { new Fussy(foo => "bar", baz => "Gloucester cheese" ) };
+isnt ($@, "", "'required' - new w/empty OK field missing");
+eval { new Fussy(bar => "", foo => "bar", baz => "Leicester cheese" )};
+is ($@, "", "'required' - new w/empty OK field empty");
+eval { new Fussy(bar => "", foo => "bar", baz => "cheesy" )};
+isnt ($@, "", "'required' - new w/reqd field that fails check_func");
+eval { new Fussy(bar => "", foo => "bar", baz => "" )};
+isnt ($@, "", "'required' - new w/reqd field that passes check_func");
+
+# Does a derived class behave exactly the same?
+eval { new MoreFussy(baz => "Wednesleydale cheese", foo => "this" ) };
+isnt ($@, "", "subclass 'required' - new w/missing attribute");
+eval { new MoreFussy(baz => "Wednesleydale cheese", bar => "hi" ) };
+is ($@, "", "subclass 'required' - new w/missing attribute + default");
+eval { new MoreFussy(baz => "Wednesleydale cheese", bar => "hi", foo => "" ) };
+isnt ($@, "", "subclass 'required' - new w/missing attr + default + blank");
+eval { new MoreFussy(foo => "bar", bar => "hi", baz => "Edam cheese")};
+is ($@, "", "subclass 'required' - new all non-empty");
+eval { new MoreFussy(foo => "bar", baz => "Gloucester cheese" ) };
+isnt ($@, "", "subclass 'required' - new w/empty OK field missing");
+eval { new MoreFussy(bar => "", foo => "bar", baz => "Leicester cheese" )};
+is ($@, "", "subclass 'required' - new w/empty OK field empty");
+eval { new MoreFussy(bar => "", foo => "bar", baz => "cheesy" )};
+isnt ($@, "", "subclass 'required' - new w/reqd field that fails check_func");
+eval { new MoreFussy(bar => "", foo => "bar", baz => "" )};
+isnt ($@, "", "subclass 'required' - new w/reqd field that passes check_func");
+
+# missing test - check when loading from DB with missing field
 
 # Still to write tests for:
 #   - run time type information functions
+#   - checking that fields are not auto-vivified unnecessarily

@@ -1,4 +1,4 @@
-Class::Tangram version 1.09
+Class::Tangram version 1.10
 ===========================
 
 Class::Tangram serves to provide a base class for deriving Tangram
@@ -31,6 +31,13 @@ This module requires Set::Object 1.02 or higher, and Pod::Constants
 Test::Simple 0.18 and Date::Manip 0.32 is also required to run the
 test suite.
 
+UPGRADING FROM 1.09
+
+There is only a very minor source incompatible change, that would
+affect people who used tied values for their init_default attribute
+options.  ie, it should not affect anyone.  e-mail me if the new
+behaviour is not what you want!
+
 UPGRADING FROM 1.08
 
 There are no source incompatibility changes since 1.08.
@@ -39,7 +46,7 @@ UPGRADING FROM 1.07
 
 There are no backwards-incompatibile changes in this release, unless
 you have another Tangram::Type that provides the tangram type
-"transient", 
+"transient".
 
 UPGRADING FROM 1.06
 

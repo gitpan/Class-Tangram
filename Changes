@@ -1,5 +1,18 @@
 Revision history for Perl extension Class::Tangram
 
+2002-04-11
+   o Release 1.10
+   o Added "required" attribute, contributed by Chuck Owen
+     <owensc@enc.edu>
+   o Much cleanup of code, particularly the import_schema function.
+   o Removed seemingly superfluous check for tied values of
+     init_default attribute option (tied checking is used elsewhere to
+     prevent unwanted auto-vivification of attributes, but those
+     should never get to init_default, especially since if they did
+     they would be effectively useless)
+   o Minor enhancements to documentation and Pod::Constants imported
+     sections
+
 2002-02-18
    o Release 1.09
    o Bugfix affecting objects with stringify function fixed

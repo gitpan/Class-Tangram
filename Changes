@@ -1,6 +1,14 @@
 Revision history for Perl extension Class::Tangram
 
 2004-02-23
+   o Release 1.56
+   o Make sure reference "container methods" always only call their
+     set method with one argument.
+   o ->set(), ->get(): Allow classes to AUTOLOAD their accessors
+                       without redefining ->can()
+   o generator test no longer requires Tangram to be installed
+
+2004-02-23
    o Release 1.54.2
    o Added support for Storable, idbif, etc column types.  Mutter to
      self disadvantages of hardcoding Tangram Type list in module.

@@ -2,37 +2,12 @@
 
 use strict;
 
-BEGIN {
-
-    eval <<lave;
-use Tangram::Schema;
-use Tangram::PerlDump;
-use Tangram::IntrSet;
-use Tangram::Set;
-use Tangram::Hash;
-use Tangram::Array;
-use Tangram::IntrArray;
-use Tangram::FlatArray;
-use Tangram::FlatHash;
-use Tangram::RawDateTime;
-use Tangram::RawTime;
-use Tangram::RawDate;
-use Tangram::DMDateTime;
-lave
-
-    if ($@) {
-	eval('use Test::More skip_all => "Tangram failed to load"');
-    } else {
-	eval('use Test::More tests => 7');
-    }
-
-}
-
+use Test::More tests => 7;
 use Class::Tangram;
 
 use_ok("Class::Tangram::Generator");
 
-my $schema = Tangram::Schema->new(
+my $schema = #Tangram::Schema->new(
     {
      sql =>
      {
@@ -224,7 +199,8 @@ my $schema = Tangram::Schema->new(
 	 }
 	},
 
-   ] });
+   ] };
+#);
 
 my $generator = Class::Tangram::Generator->new($schema);
 

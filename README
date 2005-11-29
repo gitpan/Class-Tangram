@@ -1,4 +1,4 @@
-Class::Tangram version 1.54
+Class::Tangram version 1.56
 ===========================
 
 Class::Tangram serves to provide a base class for objects well suited
@@ -114,7 +114,7 @@ affect your code.
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2001 - 2004, Sam Vilain.  All Rights Reserved.  This
+Copyright (C) 2001 - 2005, Sam Vilain.  All Rights Reserved.  This
 module is free software. It may be used, redistributed and/or modified
 under the terms of the Perl Artistic License
 

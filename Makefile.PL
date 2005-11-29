@@ -1,4 +1,4 @@
-use ExtUtils::MakeMaker;
+use inc::Module::Install;
 
 WriteMakefile
     (

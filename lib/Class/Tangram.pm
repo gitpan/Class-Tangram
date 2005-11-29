@@ -1,7 +1,7 @@
 package Class::Tangram;
 
-# Copyright (c) 2001, 2002 Sam Vilain.  All right reserved.  This file
-# is licensed under the terms of the Perl Artistic license.
+# Copyright (c) 2001 - 2005, Sam Vilain.  All right reserved.  This
+# file is licensed under the terms of the Perl Artistic license.
 
 =head1 NAME
 
@@ -135,7 +135,7 @@ use Carp;
 
 use vars qw($VERSION %defaults @ISA);
 
-$VERSION = "1.55";
+$VERSION = "1.56";
 
 use Set::Object qw(blessed reftype refaddr ish_int is_int is_double is_key);
 
@@ -1127,7 +1127,7 @@ sub _insert_X_ref {
     my $X = shift;
     my $setter = "set_$X";
     my $getter = "get_$X";
-    return $self->$setter(scalar($self->$getter), @_);
+    return $self->$setter($_[0] || scalar($self->$getter));
 }
 sub _insert_X_set {
     my $self = shift;

@@ -252,6 +252,7 @@ sub READLINE {
     if (!$self->{fh} && $self->{source}) {
 	open GENERATOR_PM, "<$self->{source}" or die $!;
 	$self->{source} = IO::Handle->new_from_fd("GENERATOR_PM", "r");
+	*GENERATOR_PM = *GENERATOR_PM if 0;
     }
 
     my $retval;

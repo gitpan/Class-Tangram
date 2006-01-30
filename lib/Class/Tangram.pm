@@ -135,7 +135,7 @@ use Carp;
 
 use vars qw($VERSION %defaults @ISA);
 
-$VERSION = "1.56";
+$VERSION = "1.57";
 
 use Set::Object qw(blessed reftype refaddr ish_int is_int is_double is_key);
 
@@ -2379,7 +2379,7 @@ sub import_schema {    # Damn this function is long
                     # comes in like $class::$meth, so extract our meth
                     $accessor_name =~ s/(.*\:\:)+(\w+)$/$2/;
                     *{$accessor} = $coderef
-                       #unless $target_pkg->can($accessor_name);
+                       unless $target_pkg->can($accessor_name);
                 }
 	    }
 	}

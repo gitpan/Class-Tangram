@@ -1,5 +1,9 @@
 use inc::Module::Install;
 
+requires( perl => '5.004' );
+auto_include    (1);
+
+
 WriteMakefile
     (
      'PREREQ_PM' => {

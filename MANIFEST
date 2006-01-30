@@ -1,12 +1,11 @@
 bin/ct2pod.pl
-build-stamp
 Changes
 inc/Module/Install.pm
 inc/Module/Install/Base.pm
+inc/Module/Install/Include.pm
 inc/Module/Install/Makefile.pm
 inc/Module/Install/MakeMaker.pm
 inc/Module/Install/Metadata.pm
-install-stamp
 lib/Class/Tangram.pm
 lib/Class/Tangram/Containers.pod
 lib/Class/Tangram/Generator.pm

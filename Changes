@@ -1,5 +1,9 @@
 Revision history for Perl extension Class::Tangram
 
+2006-01-31
+   o Release 1.57
+   o Don't insert accessors if the package can already do that method.
+
 2004-02-23
    o Release 1.56
    o Make sure reference "container methods" always only call their
